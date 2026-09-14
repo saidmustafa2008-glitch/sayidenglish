@@ -235,6 +235,31 @@ body[data-theme="dark"] .heat i.l3{background:#3E7A57}body[data-theme="dark"] .h
 .heat i.mark{outline:1.5px solid var(--accent);outline-offset:1px}
 .cal-day .dots i.d-other{background:var(--ink-2)}
 
+/* ---- V4: coach / enrich / comprehension / speech / plan / translate ---- */
+.coach-panel,.enrich-panel{border-top:1px solid var(--line-soft);margin-top:10px;padding-top:10px;text-align:left}
+.coach-text{font-family:var(--serif);font-size:14.5px;line-height:1.75;max-width:68ch;white-space:pre-wrap;color:var(--ink-2);margin:4px 0 10px}
+.coach-natural{border-left:2px solid var(--accent);padding-left:12px}
+.comp-list{display:grid;gap:0;margin-top:6px;text-align:left}
+.comp-q{padding:14px 2px;border-bottom:1px solid var(--line-soft)}
+.comp-q p{margin:6px 0}
+.comp-q input[type="text"]{margin-top:8px}
+.comp-opt{display:flex;gap:10px;align-items:center;cursor:pointer}
+.comp-opt input{width:auto;accent-color:var(--accent)}
+.tr-out{font-size:13px;color:var(--ink-2);border-left:2px solid var(--line);padding:6px 0 6px 12px;margin:6px 0;max-width:68ch}
+.enrich-panel .example{margin-bottom:4px}
+.plan-ctl{display:flex;gap:2px;padding:0 4px 10px 42px}
+/* speech diff: shape + text markers, never color alone */
+.sp-transcript{font-family:var(--serif);font-size:15px}
+.sp-diff{font-size:14px;line-height:2;max-width:68ch}
+.sp-same{color:var(--ink-2)}
+.sp-miss{background:var(--warn-wash);border-bottom:2px solid var(--warn);border-radius:3px;padding:0 2px}
+.sp-extra{background:var(--info-wash);border-bottom:2px dotted var(--info);border-radius:3px;padding:0 2px}
+.sp-sub{background:var(--accent-wash);border-bottom:2px solid var(--accent);border-radius:3px;padding:0 2px;font-weight:700}
+/* journal prose stays readable on wide iPads */
+.journal-entry p{max-width:68ch}
+/* settings stacked panels */
+.panel + .panel{margin-top:0}
+
 /* ---- More sheet (compact native-feel menu, not a sidebar clone) ---- */
 .sheet{width:min(440px,calc(100vw - 24px))}
 .more-list{display:grid}

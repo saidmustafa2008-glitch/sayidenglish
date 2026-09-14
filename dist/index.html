@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F5F4F0" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141518" media="(prefers-color-scheme: dark)">
-<meta name="description" content="Sayid English — a personal English learning OS. Read, review, listen, write.">
+<meta name="description" content="Sayid English — a personal English learning coach. Read, review, listen, speak, write.">
 <title>Sayid English</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml">
@@ -15,15 +15,15 @@
 <link rel="stylesheet" href="./css/responsive.css">
 </head>
 <body data-theme="system">
-<a class="skip-link" href="#main">Skip to content</a>
+<a class="skip-link" href="#main" data-i18n="meta.skip">Skip to content</a>
 <aside class="sidebar" aria-label="Primary">
   <div class="brand"><div class="brand-mark" aria-hidden="true">S</div>
-    <div><div class="brand-name">SAYID ENGLISH</div><div class="brand-sub">Learning OS · v3</div></div>
+    <div><div class="brand-name">SAYID ENGLISH</div><div class="brand-sub" data-i18n="meta.brandSub">Learning coach · v4</div></div>
   </div>
   <nav class="nav" id="sideNav" aria-label="Sections"></nav>
   <div class="side-foot">
     <div class="side-meta"><span><b id="sideStreak">0</b> day streak</span><span><b id="sideWeek">0</b> / <span id="sideGoal">245</span> min</span></div>
-    <button class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.5h4l.4-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg>Settings</button>
+    <button class="nav-item" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.5a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2l.4 2.5h4l.4-2.5a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg><span data-i18n="nav.settings">Settings</span></button>
   </div>
 </aside>
 
@@ -32,22 +32,22 @@
     <div><div class="kicker" id="pageKicker">TODAY</div><h1 id="pageTitle">Today</h1></div>
     <div class="top-actions">
       <span class="date-line" id="todayDate"></span>
-      <button class="icon-btn" id="paletteBtn" title="Quick actions (Ctrl/⌘ K)" aria-label="Quick actions">⌘</button>
-      <button class="icon-btn" id="quickAddBtn" title="Quick capture (W)" aria-label="Capture word">+</button>
-      <button class="btn primary" id="topStartBtn"><span class="hide-sm">Start</span> reading</button>
+      <button class="icon-btn" id="paletteBtn" data-i18n-aria="top.quickActions" aria-label="Quick actions">⌘</button>
+      <button class="icon-btn" id="quickAddBtn" data-i18n-aria="top.captureWord" aria-label="Capture word">+</button>
+      <button class="btn primary" id="topStartBtn"><span data-i18n="top.startReading">Start reading</span></button>
     </div>
   </header>
 
   <main class="content" id="main" tabindex="-1">
     <div id="bootError" hidden style="border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--surface);border-radius:8px;padding:16px 18px;margin-bottom:16px">
-      <h3 style="font-family:var(--serif);font-size:18px;margin:0 0 6px">Uygulama açılamadı — ama verilerin güvende</h3>
+      <h3 style="font-family:var(--serif);font-size:18px;margin:0 0 6px" id="bootH">Uygulama açılamadı — ama verilerin güvende</h3>
       <p class="small muted" id="bootErrorText" style="margin:0 0 10px">JavaScript çalışmadı. En olası nedenler: dosyaya çift tıklayarak açtın (file://) ya da tarayıcı eski dosyaları önbellekten veriyor.</p>
       <ol class="small" style="margin:0 0 10px;padding-left:18px">
-        <li>Bu klasörde bir sunucu başlat: <kbd>cd dist</kbd> sonra <kbd>python -m http.server 8080</kbd> → <kbd>http://localhost:8080</kbd> adresini aç.</li>
-        <li>Olmadıysa sert yenile yap: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>.</li>
-        <li>Hâlâ boşsa site verisini temizle (uygulama verin yedeğin varsa): tarayıcı → site ayarları → önbelleği temizle.</li>
+        <li id="bootLi1">Bu klasörde bir sunucu başlat: <kbd>cd dist</kbd> sonra <kbd>python -m http.server 8080</kbd> → <kbd>http://localhost:8080</kbd> adresini aç.</li>
+        <li id="bootLi2">Olmadıysa sert yenile yap: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>.</li>
+        <li id="bootLi3">Hâlâ boşsa site verisini temizle (uygulama verin yedeğin varsa): tarayıcı → site ayarları → önbelleği temizle.</li>
       </ol>
-      <p class="small muted" style="margin:0">Detay konsolda (F12). Bu kutu uygulama açılınca kendiliğinden kaybolur.</p>
+      <p class="small muted" style="margin:0" id="bootNote">Detay konsolda (F12). Bu kutu uygulama açılınca kendiliğinden kaybolur.</p>
     </div>
     <section class="view active" id="view-today" aria-label="Today"></section>
     <section class="view" id="view-read" aria-label="Read"></section>
@@ -66,136 +66,141 @@
 <nav class="bottom-nav" id="bottomNav" aria-label="Primary mobile"></nav>
 
 <dialog id="paletteDialog" aria-label="Command palette"><div class="palette">
-  <input id="paletteInput" type="search" placeholder="Type an action…  ( Esc to close )" aria-label="Search actions">
+  <input id="paletteInput" type="search" data-i18n-ph="pal.ph" placeholder="Type an action…  ( Esc to close )" aria-label="Search actions">
   <div class="palette-list" id="paletteList" role="listbox"></div>
 </div></dialog>
 
 <dialog id="captureDialog" aria-label="Quick capture"><form method="dialog" class="modal-card" id="captureForm">
-  <div class="modal-head"><div><div class="eyebrow">QUICK CAPTURE · <kbd>W</kbd></div><h3>Save a word or chunk</h3></div>
-  <button value="cancel" class="icon-btn" aria-label="Close">×</button></div>
+  <div class="modal-head"><div><div class="eyebrow" id="capEyebrow">QUICK CAPTURE · <kbd>W</kbd></div><h3 data-i18n="dlg.quickH">Save a word or chunk</h3></div>
+  <button value="cancel" class="icon-btn" data-i18n-aria="common.close" aria-label="Close">×</button></div>
   <div class="form-grid">
-    <label class="field">Word or chunk<input type="text" id="capWord" required placeholder="figure out" autocomplete="off"></label>
-    <label class="field">Meaning (Turkish)<input type="text" id="capMeaning" required placeholder="anlamak, çözmek" autocomplete="off"></label>
-    <label class="field">Example / context<textarea id="capExample" placeholder="I couldn't figure out what he meant."></textarea></label>
-    <label class="field">Source<input type="text" id="capSource" autocomplete="off"></label>
+    <label class="field"><span data-i18n="dlg.wordChunk">Word or chunk</span><input type="text" id="capWord" required data-i18n-ph="dlg.wordPh" placeholder="figure out" autocomplete="off"></label>
+    <label class="field"><span data-i18n="dlg.meaning">Meaning (Turkish)</span><input type="text" id="capMeaning" required data-i18n-ph="dlg.meaningPh" placeholder="anlamak, çözmek" autocomplete="off"></label>
+    <label class="field"><span data-i18n="dlg.example">Example / context</span><textarea id="capExample" data-i18n-ph="dlg.examplePh" placeholder="I couldn't figure out what he meant."></textarea></label>
+    <label class="field"><span data-i18n="dlg.source">Source</span><input type="text" id="capSource" autocomplete="off"></label>
   </div>
-  <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="capSave">Save <kbd>↵</kbd></button></div>
+  <div class="modal-actions"><button value="cancel" class="btn ghost" data-i18n="common.cancel">Cancel</button><button value="default" class="btn primary" id="capSave"><span data-i18n="dlg.saveEnter">Save</span> <kbd>↵</kbd></button></div>
 </form></dialog>
 
 <dialog id="sessionDialog" aria-label="Reading focus"><div class="modal-card wide modal-center">
   <div class="focus-wrap">
-    <div class="focus-eyebrow">READING SESSION</div>
+    <div class="focus-eyebrow" data-i18n="dlg.focusEyebrow">READING SESSION</div>
     <h2 class="focus-title" id="fTitle">Book</h2>
     <p class="focus-sub" id="fSub"></p>
     <div class="big-timer tabular" id="fTimer">00:00</div>
     <div class="timer-state" id="fState">Ready</div>
     <div class="focus-controls">
-      <button class="btn" id="fReset">Reset</button>
-      <button class="btn accent" id="fToggle">Start</button>
-      <button class="btn" id="fWord">+ Word</button>
-      <button class="btn primary" id="fFinish">Finish</button>
+      <button class="btn" id="fReset" data-i18n="dlg.reset">Reset</button>
+      <button class="btn accent" id="fToggle" data-i18n="dlg.start">Start</button>
+      <button class="btn" id="fWord" data-i18n="dlg.word">+ Word</button>
+      <button class="btn primary" id="fFinish" data-i18n="dlg.finish">Finish</button>
     </div>
-    <p class="focus-note">Stay with the text. Capture words with <kbd>W</kbd> without leaving this view. <button class="link-btn" id="fClose">Close without saving</button></p>
+    <p class="focus-note"><span id="focusNoteText">Stay with the text.</span> <button class="link-btn" id="fClose" data-i18n="dlg.closeNoSave">Close without saving</button></p>
   </div>
 </div></dialog>
 
 <dialog id="finishDialog" aria-label="Save reading session"><form method="dialog" class="modal-card wide" id="finishForm">
-  <div class="modal-head"><div><div class="eyebrow">SESSION SUMMARY</div><h3>What did you read?</h3></div>
-  <button value="cancel" class="icon-btn" aria-label="Close">×</button></div>
-  <div class="insight-trio trio-flat"><div><b id="rMin">0</b><span>minutes</span></div><div><b id="rPages">0</b><span>pages</span></div><div><b id="rWords">0</b><span>words captured</span></div></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="dlg.sumEyebrow">SESSION SUMMARY</div><h3 data-i18n="dlg.sumH">What did you read?</h3></div>
+  <button value="cancel" class="icon-btn" data-i18n-aria="common.close" aria-label="Close">×</button></div>
+  <div class="insight-trio trio-flat"><div><b id="rMin">0</b><span data-i18n="common.minutes">minutes</span></div><div><b id="rPages">0</b><span data-i18n="read.pagesOnly">pages</span></div><div><b id="rWords">0</b><span data-i18n="dlg.wordsCaptured">words captured</span></div></div>
   <div class="form-2">
-    <label class="field">Start page<input type="number" id="sessStart" min="0" value="0"></label>
-    <label class="field">End page<input type="number" id="sessEnd" min="0" value="0"></label>
+    <label class="field"><span data-i18n="dlg.startPage">Start page</span><input type="number" id="sessStart" min="0" value="0"></label>
+    <label class="field"><span data-i18n="dlg.endPage">End page</span><input type="number" id="sessEnd" min="0" value="0"></label>
   </div>
-  <div><div class="eyebrow push-down-xs">COMPREHENSION · 1–5</div><div class="vocab-tools" id="rateRow" role="radiogroup" aria-label="Comprehension"></div></div>
-  <label class="field">Short summary in English (2–5 sentences)<textarea id="sessSummary" placeholder="Today I read about…"></textarea></label>
-  <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="sessSave">Save session</button></div>
+  <div><div class="eyebrow push-down-xs" data-i18n="dlg.comp">COMPREHENSION · 1–5</div><div class="vocab-tools" id="rateRow" role="radiogroup" aria-label="Comprehension"></div></div>
+  <label class="field"><span data-i18n="dlg.summary">Short summary in English (2–5 sentences)</span><textarea id="sessSummary" data-i18n-ph="dlg.summaryPh" placeholder="Today I read about…"></textarea></label>
+  <div class="row-btns"><button type="button" class="link-btn" id="sumTranslate" data-i18n="cloud.translate">Translate</button></div>
+  <div class="tr-out" id="tro-sessSum" hidden></div>
+  <label class="field"><span data-i18n="dlg.context">Reading context — paste the passage you read (optional)</span><textarea id="sessContext" data-i18n-ph="dlg.contextPh" placeholder="Paste a few paragraphs you actually read…"></textarea></label>
+  <div class="modal-actions"><button value="cancel" class="btn ghost" data-i18n="common.cancel">Cancel</button><button value="default" class="btn primary" id="sessSave" data-i18n="dlg.saveSession">Save session</button></div>
 </form></dialog>
 
 <dialog id="listenDialog" aria-label="Listening session"><div class="modal-card wide modal-center">
   <div class="focus-wrap">
-    <div class="focus-eyebrow">LISTENING · SHADOWING</div>
-    <h2 class="focus-title">Train your ear</h2>
-    <label class="field focus-field">Source title<input type="text" id="lisTitle" placeholder="Easy English — street interviews"></label>
+    <div class="focus-eyebrow" data-i18n="dlg.lisEyebrow">LISTENING · SHADOWING</div>
+    <h2 class="focus-title" data-i18n="dlg.lisH">Train your ear</h2>
+    <label class="field focus-field"><span data-i18n="dlg.lisSource">Source title</span><input type="text" id="lisTitle" data-i18n-ph="dlg.lisSourcePh" placeholder="Easy English — street interviews"></label>
     <div class="vocab-tools vocab-center" id="lisTypeRow"></div>
     <div class="big-timer tabular" id="lTimer">00:00</div>
     <div class="timer-state" id="lState">Ready</div>
     <div class="focus-controls">
-      <button class="btn" id="lReset">Reset</button>
-      <button class="btn accent" id="lToggle">Start</button>
+      <button class="btn" id="lReset" data-i18n="dlg.reset">Reset</button>
+      <button class="btn accent" id="lToggle" data-i18n="dlg.start">Start</button>
       <button class="btn" id="lShadow" aria-pressed="false">Shadowing: off</button>
-      <button class="btn primary" id="lFinish">Finish</button>
+      <button class="btn primary" id="lFinish" data-i18n="dlg.finish">Finish</button>
     </div>
-    <p class="focus-note"><button class="link-btn" id="lClose">Close without saving</button></p>
+    <p class="focus-note"><button class="link-btn" id="lClose" data-i18n="dlg.closeNoSave">Close without saving</button></p>
   </div>
 </div></dialog>
 
 <dialog id="listenFinishDialog" aria-label="Save listening"><form method="dialog" class="modal-card wide" id="listenFinishForm">
-  <div class="modal-head"><div><div class="eyebrow">LISTENING SAVED</div><h3>What did you hear?</h3></div>
-  <button value="cancel" class="icon-btn" aria-label="Close">×</button></div>
-  <div class="insight-trio trio-flat"><div><b id="lrMin">0</b><span>minutes</span></div><div><b id="lrMode">Listen</b><span>mode</span></div><div><b id="lrPhrases">0</b><span>phrases</span></div></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="dlg.lisSaved">LISTENING SAVED</div><h3 data-i18n="dlg.lisH2">What did you hear?</h3></div>
+  <button value="cancel" class="icon-btn" data-i18n-aria="common.close" aria-label="Close">×</button></div>
+  <div class="insight-trio trio-flat"><div><b id="lrMin">0</b><span data-i18n="common.minutes">minutes</span></div><div><b id="lrMode">Listen</b><span data-i18n="dlg.mode">mode</span></div><div><b id="lrPhrases">0</b><span data-i18n="listen.phrases">phrases</span></div></div>
   <div class="form-2">
-    <label class="field">Difficulty 1–5<select id="lisDiff"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
-    <label class="field">Comprehension 1–5<select id="lisComp"><option value="0">Skip</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+    <label class="field"><span data-i18n="dlg.difficulty">Difficulty 1–5</span><select id="lisDiff"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+    <label class="field"><span data-i18n="dlg.compLis">Comprehension 1–5</span><select id="lisComp"><option value="0" data-i18n="dlg.skipOpt">Skip</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
   </div>
-  <label class="field">Useful phrases (one per line)<textarea id="lisPhrases" placeholder="That makes sense.&#10;I was about to…"></textarea></label>
-  <label class="field">Notes<textarea id="lisNotes" placeholder="What was difficult?"></textarea></label>
-  <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="lisSave">Save listening</button></div>
+  <label class="field"><span data-i18n="dlg.phrases">Useful phrases (one per line)</span><textarea id="lisPhrases" data-i18n-ph="dlg.phrasesPh" placeholder="That makes sense.&#10;I was about to…"></textarea></label>
+  <label class="field"><span data-i18n="dlg.notes">Notes</span><textarea id="lisNotes" data-i18n-ph="dlg.notesPh" placeholder="What was difficult?"></textarea></label>
+  <div class="modal-actions"><button value="cancel" class="btn ghost" data-i18n="common.cancel">Cancel</button><button value="default" class="btn primary" id="lisSave" data-i18n="dlg.saveListening">Save listening</button></div>
 </form></dialog>
 
 <dialog id="bookDialog" aria-label="Add book"><form method="dialog" class="modal-card" id="bookForm">
-  <div class="modal-head"><div><div class="eyebrow">LIBRARY · №</div><h3>Add a book</h3></div>
-  <button value="cancel" class="icon-btn" aria-label="Close">×</button></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="dlg.bookEyebrow">LIBRARY · №</div><h3 data-i18n="dlg.bookH">Add a book</h3></div>
+  <button value="cancel" class="icon-btn" data-i18n-aria="common.close" aria-label="Close">×</button></div>
   <div class="form-grid">
-    <label class="field">Title<input type="text" id="bkTitle" required></label>
-    <label class="field">Author<input type="text" id="bkAuthor"></label>
+    <label class="field"><span data-i18n="dlg.title">Title</span><input type="text" id="bkTitle" required></label>
+    <label class="field"><span data-i18n="dlg.author">Author</span><input type="text" id="bkAuthor"></label>
     <div class="form-2">
-      <label class="field">Total pages<input type="number" id="bkPages" min="1" value="100"></label>
-      <label class="field">Level<select id="bkLevel"><option>A1</option><option>A2</option><option selected>B1</option><option>B1–B2</option><option>B2</option></select></label>
+      <label class="field"><span data-i18n="dlg.totalPages">Total pages</span><input type="number" id="bkPages" min="1" value="100"></label>
+      <label class="field"><span data-i18n="dlg.level">Level</span><select id="bkLevel"><option>A1</option><option>A2</option><option selected>B1</option><option>B1–B2</option><option>B2</option></select></label>
     </div>
-    <label class="field">Shelf<select id="bkStatus"><option value="planned">Up next</option><option value="reading">Reading now</option><option value="paused">Paused</option><option value="finished">Finished</option></select></label>
+    <label class="field"><span data-i18n="dlg.shelf">Shelf</span><select id="bkStatus"><option value="planned" data-i18n="dlg.shelfPlanned">Up next</option><option value="reading" data-i18n="dlg.shelfReading">Reading now</option><option value="paused" data-i18n="dlg.shelfPaused">Paused</option><option value="finished" data-i18n="dlg.shelfFinished">Finished</option></select></label>
   </div>
-  <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="bkSave">Add book</button></div>
+  <div class="modal-actions"><button value="cancel" class="btn ghost" data-i18n="common.cancel">Cancel</button><button value="default" class="btn primary" id="bkSave" data-i18n="dlg.addBook">Add book</button></div>
 </form></dialog>
 
 <dialog id="bookDetailDialog" aria-label="Book detail"><div class="modal-card wide">
-  <div class="modal-head"><div><div class="eyebrow">BOOK · DETAIL</div><h3 id="bdTitle">Book</h3></div>
-  <button class="icon-btn" id="bdClose" aria-label="Close">×</button></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="dlg.bookDetail">BOOK · DETAIL</div><h3 id="bdTitle">Book</h3></div>
+  <button class="icon-btn" id="bdClose" data-i18n-aria="common.close" aria-label="Close">×</button></div>
   <div id="bdBody"></div>
 </div></dialog>
 
 <dialog id="dayDialog" aria-label="Day detail"><div class="modal-card">
-  <div class="modal-head"><div><div class="eyebrow">CALENDAR · DAY</div><h3 id="dayTitle">Day</h3></div>
-  <button class="icon-btn" id="dayClose" aria-label="Close">×</button></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="dlg.day">CALENDAR · DAY</div><h3 id="dayTitle">Day</h3></div>
+  <button class="icon-btn" id="dayClose" data-i18n-aria="common.close" aria-label="Close">×</button></div>
   <div id="dayBody"></div>
 </div></dialog>
 
 <dialog id="journalDialog" aria-label="Write journal"><form method="dialog" class="modal-card wide" id="journalForm">
-  <div class="modal-head"><div><div class="eyebrow">JOURNAL · ENGLISH ONLY</div><h3>Write today</h3></div>
-  <button value="cancel" class="icon-btn" aria-label="Close">×</button></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="dlg.journalEyebrow">JOURNAL · ENGLISH ONLY</div><h3 data-i18n="dlg.writeToday">Write today</h3></div>
+  <button value="cancel" class="icon-btn" data-i18n-aria="common.close" aria-label="Close">×</button></div>
   <div class="form-grid">
-    <label class="field">Title<input type="text" id="jTitle" placeholder="My day"></label>
-    <label class="field">Prompt<input type="text" id="jPrompt"></label>
-    <div class="editor-wrap"><textarea class="editor" id="jText" required placeholder="Today I…"></textarea></div>
+    <label class="field"><span data-i18n="dlg.jTitle">Title</span><input type="text" id="jTitle" data-i18n-ph="dlg.jTitlePh" placeholder="My day"></label>
+    <label class="field"><span data-i18n="dlg.jPrompt">Prompt</span><input type="text" id="jPrompt"></label>
+    <div class="editor-wrap"><textarea class="editor" id="jText" required data-i18n-ph="dlg.jTextPh" placeholder="Today I…"></textarea></div>
     <div class="editor-meta"><span id="jCount">0 words</span>
-      <label class="inline-check">Confidence <select id="jConf"><option value="1">1/5</option><option value="2">2/5</option><option value="3" selected>3/5</option><option value="4">4/5</option><option value="5">5/5</option></select></label>
+      <label class="inline-check"><span data-i18n="dlg.confidence">Confidence</span> <select id="jConf"><option value="1">1/5</option><option value="2">2/5</option><option value="3" selected>3/5</option><option value="4">4/5</option><option value="5">5/5</option></select></label>
     </div>
+    <div class="row-btns"><button type="button" class="link-btn" id="jTranslate" data-i18n="journal.translateSel">Translate selection</button></div>
+    <div class="tr-out" id="tro-jSel" hidden></div>
   </div>
-  <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="jSave">Save entry</button></div>
+  <div class="modal-actions"><button value="cancel" class="btn ghost" data-i18n="common.cancel">Cancel</button><button value="default" class="btn primary" id="jSave" data-i18n="dlg.saveEntry">Save entry</button></div>
 </form></dialog>
 
 <div class="toast" id="toast" role="status"></div>
 
 <dialog id="moreDialog" aria-label="More sections"><div class="modal-card sheet">
-  <div class="modal-head"><div><div class="eyebrow">BROWSE</div><h3>More</h3></div>
-  <button class="icon-btn" id="moreClose" aria-label="Close">×</button></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="more.browse">BROWSE</div><h3 data-i18n="more.title">More</h3></div>
+  <button class="icon-btn" id="moreClose" data-i18n-aria="common.close" aria-label="Close">×</button></div>
   <div class="more-list" id="moreList"></div>
 </div></dialog>
 
 <dialog id="importDialog" aria-label="Confirm backup import"><div class="modal-card">
-  <div class="modal-head"><div><div class="eyebrow">BACKUP · CONFIRM</div><h3>Replace this device's data?</h3></div></div>
+  <div class="modal-head"><div><div class="eyebrow" data-i18n="dlg.impEyebrow">BACKUP · CONFIRM</div><h3 data-i18n="dlg.impH">Replace this device's data?</h3></div></div>
   <div id="importSummary"></div>
-  <div class="modal-actions"><button class="btn ghost" id="importCancel">Keep my data</button><button class="btn accent" id="importConfirm">Replace with backup</button></div>
+  <div class="modal-actions"><button class="btn ghost" id="importCancel" data-i18n="dlg.keepMine">Keep my data</button><button class="btn accent" id="importConfirm" data-i18n="dlg.replace">Replace with backup</button></div>
 </div></dialog>
 <script>
 window.__sayidBootTimer = setTimeout(function () {

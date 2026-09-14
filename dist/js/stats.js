@@ -86,7 +86,12 @@ export const monthItems = (state, date) => {
     journal: state.journal.filter((j) => inMonth(j.date))
   };
 };
-// --- V3 additions (non-breaking) ---
+// --- V4 additions (non-breaking) ---
+export const comprehensionAverage = (state) => {
+  const list = state.comprehension || [];
+  return list.length ? Math.round(sum(list, (q) => (q.total ? (100 * q.score) / q.total : 0)) / list.length) : 0;
+};
+export const coachedJournalCount = (state) => state.journal.filter((j) => j.coach && typeof j.coach === 'object').length;
 export const dueWords = (state, date = dayKey()) => state.words.filter((w) => (w.nextReview || date) <= date);
 export const chunkWords = (state) => state.words.filter((w) => w.chunk || String(w.word || '').trim().split(/\s+/).length > 1);
 export const wordsFromBook = (state, book) => {

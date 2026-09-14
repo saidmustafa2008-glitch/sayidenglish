@@ -1,0 +1,12 @@
+# Secrets — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Dependencies (none required, but keep the rule)
+node_modules/
