@@ -3,6 +3,7 @@ import { sum, dateShift, lastNDays, sessionsFor, listeningFor, journalFor, minut
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
+const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); else console.warn('[sayid] missing #' + id); };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const today = () => dayKey();
@@ -712,29 +713,29 @@ function bind() {
       }
     }
   });
-  $('#paletteBtn').addEventListener('click', openPalette);
-  $('#paletteInput').addEventListener('input', (e) => { palIdx = 0; drawPalette(e.target.value); });
-  $('#paletteInput').addEventListener('keydown', (e) => {
+  on('paletteBtn', 'click', openPalette);
+  on('paletteInput', 'input', (e) => { palIdx = 0; drawPalette(e.target.value); });
+  on('paletteInput', 'keydown', (e) => {
     const items = $('#paletteList')._items || [];
     if (e.key === 'ArrowDown') { e.preventDefault(); palIdx = Math.min(items.length - 1, palIdx + 1); drawPalette($('#paletteInput').value); }
     if (e.key === 'ArrowUp') { e.preventDefault(); palIdx = Math.max(0, palIdx - 1); drawPalette($('#paletteInput').value); }
     if (e.key === 'Enter') { const it = items[palIdx]; $('#paletteDialog').close(); if (it) it.fn(); }
   });
-  $('#quickAddBtn').addEventListener('click', openCapture);
-  $('#topStartBtn').addEventListener('click', openReader);
-  $('#capSave').addEventListener('click', (e) => { e.preventDefault(); if (saveCapture()) $('#captureDialog').close(); });
-  $('#fToggle').addEventListener('click', toggleR);
-  $('#fReset').addEventListener('click', () => { R.run = false; clearInterval(R.h); R.sec = 0; $('#fTimer').textContent = '00:00'; $('#fToggle').textContent = 'Start'; $('#fState').textContent = 'Ready'; });
-  $('#fWord').addEventListener('click', () => { $('#capSource').value = currentBook(state)?.title || ''; $('#captureDialog').showModal(); });
-  $('#fFinish').addEventListener('click', finishReader);
-  $('#fClose').addEventListener('click', () => { if (R.run && !confirm('Close this session without saving?')) return; R.run = false; clearInterval(R.h); $('#sessionDialog').close(); });
-  $('#sessSave').addEventListener('click', (e) => { e.preventDefault(); if (saveReading()) $('#finishDialog').close(); });
-  $('#sessStart').addEventListener('input', () => { $('#rPages').textContent = Math.max(0, Number($('#sessEnd').value || 0) - Number($('#sessStart').value || 0)); });
-  $('#sessEnd').addEventListener('input', () => { $('#rPages').textContent = Math.max(0, Number($('#sessEnd').value || 0) - Number($('#sessStart').value || 0)); });
-  $('#lToggle').addEventListener('click', toggleL);
-  $('#lReset').addEventListener('click', () => { L.run = false; clearInterval(L.h); L.sec = 0; $('#lTimer').textContent = '00:00'; $('#lState').textContent = 'Ready'; });
-  $('#lShadow').addEventListener('click', () => { lisShadow = !lisShadow; $('#lShadow').textContent = `Shadowing: ${lisShadow ? 'on' : 'off'}`; $('#lShadow').setAttribute('aria-pressed', String(lisShadow)); });
-  $('#lFinish').addEventListener('click', () => {
+  on('quickAddBtn', 'click', openCapture);
+  on('topStartBtn', 'click', openReader);
+  on('capSave', 'click', (e) => { e.preventDefault(); if (saveCapture()) $('#captureDialog').close(); });
+  on('fToggle', 'click', toggleR);
+  on('fReset', 'click', () => { R.run = false; clearInterval(R.h); R.sec = 0; $('#fTimer').textContent = '00:00'; $('#fToggle').textContent = 'Start'; $('#fState').textContent = 'Ready'; });
+  on('fWord', 'click', () => { $('#capSource').value = currentBook(state)?.title || ''; $('#captureDialog').showModal(); });
+  on('fFinish', 'click', finishReader);
+  on('fClose', 'click', () => { if (R.run && !confirm('Close this session without saving?')) return; R.run = false; clearInterval(R.h); $('#sessionDialog').close(); });
+  on('sessSave', 'click', (e) => { e.preventDefault(); if (saveReading()) $('#finishDialog').close(); });
+  on('sessStart', 'input', () => { $('#rPages').textContent = Math.max(0, Number($('#sessEnd').value || 0) - Number($('#sessStart').value || 0)); });
+  on('sessEnd', 'input', () => { $('#rPages').textContent = Math.max(0, Number($('#sessEnd').value || 0) - Number($('#sessStart').value || 0)); });
+  on('lToggle', 'click', toggleL);
+  on('lReset', 'click', () => { L.run = false; clearInterval(L.h); L.sec = 0; $('#lTimer').textContent = '00:00'; $('#lState').textContent = 'Ready'; });
+  on('lShadow', 'click', () => { lisShadow = !lisShadow; $('#lShadow').textContent = `Shadowing: ${lisShadow ? 'on' : 'off'}`; $('#lShadow').setAttribute('aria-pressed', String(lisShadow)); });
+  on('lFinish', 'click', () => {
     L.run = false; clearInterval(L.h);
     $('#listenDialog').close();
     $('#lrMin').textContent = Math.max(1, Math.round(L.sec / 60));
@@ -742,15 +743,15 @@ function bind() {
     $('#lisPhrases').value = ''; $('#lisNotes').value = ''; $('#lrPhrases').textContent = '0';
     $('#listenFinishDialog').showModal();
   });
-  $('#lClose').addEventListener('click', () => { if (L.run && !confirm('Close without saving?')) return; L.run = false; clearInterval(L.h); $('#listenDialog').close(); });
-  $('#lisPhrases').addEventListener('input', () => { $('#lrPhrases').textContent = $('#lisPhrases').value.split('\n').map((x) => x.trim()).filter(Boolean).length; });
-  $('#lisSave').addEventListener('click', (e) => {
+  on('lClose', 'click', () => { if (L.run && !confirm('Close without saving?')) return; L.run = false; clearInterval(L.h); $('#listenDialog').close(); });
+  on('lisPhrases', 'input', () => { $('#lrPhrases').textContent = $('#lisPhrases').value.split('\n').map((x) => x.trim()).filter(Boolean).length; });
+  on('lisSave', 'click', (e) => {
     e.preventDefault();
     const phrases = $('#lisPhrases').value.split('\n').map((x) => x.trim()).filter(Boolean);
     state.listening.push({ id: uid('listen'), date: today(), source: $('#lisTitle').value.trim() || 'Listening practice', contentType: lisType, minutes: Math.max(1, Math.round(L.sec / 60)), shadowing: lisShadow, difficulty: Number($('#lisDiff').value), comprehension: Number($('#lisComp').value), phrases, notes: $('#lisNotes').value.trim(), createdAt: new Date().toISOString() });
     $('#listenFinishDialog').close(); persist(`Listening saved: ${Math.max(1, Math.round(L.sec / 60))} min.`);
   });
-  $('#bkSave').addEventListener('click', (e) => {
+  on('bkSave', 'click', (e) => {
     e.preventDefault();
     const t = $('#bkTitle').value.trim(); if (!t) { toast('Title is required.'); return; }
     const st = $('#bkStatus').value;
@@ -758,10 +759,10 @@ function bind() {
     state.books.push({ id: uid('book'), title: t, author: $('#bkAuthor').value.trim(), totalPages: Math.max(1, Number($('#bkPages').value || 100)), currentPage: st === 'finished' ? Number($('#bkPages').value || 100) : 0, level: $('#bkLevel').value, status: st, color: ['#253d58', '#754535', '#3c503c', '#5a4477', '#72533a'][state.books.length % 5] });
     $('#bookForm').reset(); $('#bookDialog').close(); persist('Book shelved.');
   });
-  $('#bdClose').addEventListener('click', () => $('#bookDetailDialog').close());
-  $('#dayClose').addEventListener('click', () => $('#dayDialog').close());
-  $('#jText').addEventListener('input', () => { $('#jCount').textContent = `${$('#jText').value.trim().split(/\s+/).filter(Boolean).length} words`; });
-  $('#jSave').addEventListener('click', (e) => {
+  on('bdClose', 'click', () => $('#bookDetailDialog').close());
+  on('dayClose', 'click', () => $('#dayDialog').close());
+  on('jText', 'input', () => { $('#jCount').textContent = `${$('#jText').value.trim().split(/\s+/).filter(Boolean).length} words`; });
+  on('jSave', 'click', (e) => {
     e.preventDefault();
     const t = $('#jText').value.trim(); if (!t) { toast('Write something first.'); return; }
     state.journal.push({ id: uid('journal'), date: today(), title: $('#jTitle').value.trim() || 'Journal entry', prompt: $('#jPrompt').value.trim(), text: t, confidence: Number($('#jConf').value), createdAt: new Date().toISOString() });
@@ -769,5 +770,17 @@ function bind() {
   });
 }
 
-applyTheme(); buildNav(); bind(); renderAll();
+function bootError(err) {
+  console.error('[sayid] boot failed', err);
+  const box = document.getElementById('bootError'), txt = document.getElementById('bootErrorText');
+  if (box) box.hidden = false;
+  if (txt && err) txt.textContent = 'Hata: ' + (err.message || err) + ' — F12 konsolundaki kırmızı satırı bana gönder, hemen bakayım.';
+}
+try {
+  applyTheme(); buildNav(); bind(); renderAll();
+  window.__sayidBooted = true;
+  clearTimeout(window.__sayidBootTimer);
+  const box = document.getElementById('bootError');
+  if (box) box.hidden = true;
+} catch (err) { bootError(err); }
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));

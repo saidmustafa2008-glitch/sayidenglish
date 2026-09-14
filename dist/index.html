@@ -39,6 +39,16 @@
   </header>
 
   <main class="content" id="main" tabindex="-1">
+    <div id="bootError" hidden style="border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--surface);border-radius:8px;padding:16px 18px;margin-bottom:16px">
+      <h3 style="font-family:var(--serif);font-size:18px;margin:0 0 6px">Uygulama açılamadı — ama verilerin güvende</h3>
+      <p class="small muted" id="bootErrorText" style="margin:0 0 10px">JavaScript çalışmadı. En olası nedenler: dosyaya çift tıklayarak açtın (file://) ya da tarayıcı eski dosyaları önbellekten veriyor.</p>
+      <ol class="small" style="margin:0 0 10px;padding-left:18px">
+        <li>Bu klasörde bir sunucu başlat: <kbd>cd dist</kbd> sonra <kbd>python -m http.server 8080</kbd> → <kbd>http://localhost:8080</kbd> adresini aç.</li>
+        <li>Olmadıysa sert yenile yap: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>.</li>
+        <li>Hâlâ boşsa site verisini temizle (uygulama verin yedeğin varsa): tarayıcı → site ayarları → önbelleği temizle.</li>
+      </ol>
+      <p class="small muted" style="margin:0">Detay konsolda (F12). Bu kutu uygulama açılınca kendiliğinden kaybolur.</p>
+    </div>
     <section class="view active" id="view-today" aria-label="Today"></section>
     <section class="view" id="view-read" aria-label="Read"></section>
     <section class="view" id="view-listen" aria-label="Listen"></section>
@@ -175,6 +185,16 @@
 </form></dialog>
 
 <div class="toast" id="toast" role="status"></div>
+<script>
+window.__sayidBootTimer = setTimeout(function () {
+  if (!window.__sayidBooted) { var b = document.getElementById('bootError'); if (b) b.hidden = false; }
+}, 2500);
+window.addEventListener('error', function (e) {
+  if (window.__sayidBooted) return;
+  var b = document.getElementById('bootError'), t = document.getElementById('bootErrorText');
+  if (b && t && e && e.message) { t.textContent = 'Hata: ' + e.message + ' — büyük ihtimalle eski önbellek ya da file:// ile açma. Yukarıdaki 3 adımı dene.'; b.hidden = false; }
+}, true);
+</script>
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>
