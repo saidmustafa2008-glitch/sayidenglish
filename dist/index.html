@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#171b23">
+  <meta name="description" content="Sayid English V2.1 — reading, listening, vocabulary, journal, review and progress system.">
+  <title>Sayid English — V2.1</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/components.css">
+  <link rel="stylesheet" href="./css/responsive.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div><strong>SAYID ENGLISH</strong><span>Learning OS · V2.1</span></div>
+      </div>
+      <nav class="nav" aria-label="Ana menü">
+        <button class="nav-item active" data-view="today"><span>01</span>Today</button>
+        <button class="nav-item" data-view="read"><span>02</span>Read</button>
+        <button class="nav-item" data-view="listen"><span>03</span>Listen</button>
+        <button class="nav-item" data-view="journal"><span>04</span>Journal</button>
+        <button class="nav-item" data-view="vocabulary"><span>05</span>Vocabulary</button>
+        <button class="nav-item" data-view="review"><span>06</span>Review</button>
+        <button class="nav-item" data-view="quiz"><span>07</span>Quiz</button>
+        <button class="nav-item" data-view="library"><span>08</span>Library</button>
+        <button class="nav-item" data-view="insights"><span>09</span>Insights</button>
+        <button class="nav-item" data-view="progress"><span>10</span>Progress</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="streak-card"><span class="streak-dot"></span><div><b id="sideStreak">0 day streak</b><small id="sideWeek">0 / 245 min this week</small></div></div>
+        <button class="nav-item settings-nav" data-view="settings"><span>⚙</span>Settings</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><div class="kicker" id="pageKicker">YOUR DAILY SYSTEM</div><h1 id="pageTitle">Today</h1></div>
+        <div class="top-actions">
+          <div class="date-chip" id="todayDate"></div>
+          <button class="icon-button" id="quickAddWord" title="Kelime ekle" aria-label="Kelime ekle">＋</button>
+          <button class="primary compact" id="startTop">Start reading</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="view active" id="view-today">
+          <div class="welcome-row">
+            <div><p class="eyebrow">A2 → B1 TRACK</p><h2 id="welcomeTitle">Good evening, Sayid.</h2><p class="muted">Okuma, dinleme, tekrar ve üretim — tek sistem.</p></div>
+            <div class="level-chip"><span>LEVEL</span><b id="levelNumber">01</b></div>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="focus-card">
+              <div class="focus-top"><div><span class="eyebrow light">TODAY FOCUS</span><h3 id="focusBook">The Gift of the Magi and Other Stories</h3><p id="focusMeta">35 min reading · continue where you left off</p></div><div class="focus-ring" id="focusRing"><div><b id="focusPercent">0%</b><span>goal</span></div></div></div>
+              <div class="focus-bottom"><button class="accent-button" id="startFocus">Start reading</button><button class="dark-ghost" data-view-jump="listen">Listening</button></div>
+            </article>
+            <article class="weekly-card">
+              <div class="section-head"><div><span class="eyebrow">THIS WEEK</span><h3><span id="weekMinutes">0</span> <small>min</small></h3></div><span class="delta" id="weekGoalPct">0%</span></div>
+              <div class="week-strip" id="weekStrip"></div>
+              <div class="weekly-foot"><span id="weekDays">0/7 active days</span><span id="weekGoalText">Goal 245 min</span></div>
+            </article>
+          </div>
+
+          <div class="today-layout">
+            <article class="panel daily-plan-panel">
+              <div class="section-head"><div><span class="eyebrow">TODAY PLAN</span><h3>4-part English routine</h3></div><span class="plan-score" id="planScore">0/4</span></div>
+              <div class="daily-plan" id="dailyPlan"></div>
+            </article>
+            <article class="panel pulse-panel">
+              <div class="section-head"><div><span class="eyebrow">LEARNING PULSE</span><h3>This month</h3></div><button class="text-button" data-view-jump="insights">Calendar</button></div>
+              <div class="pulse-grid" id="pulseGrid"></div>
+            </article>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric"><span>Reading</span><b id="mTotalMinutes">0</b><small>total minutes</small></article>
+            <article class="metric"><span>Listening</span><b id="mListenMinutes">0</b><small>total minutes</small></article>
+            <article class="metric"><span>Vocabulary</span><b id="mWords">0</b><small>saved words & chunks</small></article>
+            <article class="metric"><span>Journal</span><b id="mJournal">0</b><small>English entries</small></article>
+          </div>
+
+          <div class="two-col">
+            <article class="panel"><div class="section-head"><div><span class="eyebrow">CONSISTENCY</span><h3>Study heatmap</h3></div><button class="text-button" data-view-jump="insights">See insights</button></div><div class="heatmap" id="homeHeatmap"></div></article>
+            <article class="panel current-book-panel" id="currentBookPanel"></article>
+          </div>
+        </section>
+
+        <section class="view" id="view-read">
+          <div class="page-intro"><div><span class="eyebrow">FOCUS MODE</span><h2>Reading sessions</h2><p>Oku, kelime yakala, kısa özetle ve ilerlemeni kaydet.</p></div><button class="primary" id="startReadView">Start session</button></div>
+          <div class="read-layout"><article class="panel" id="readCurrentCard"></article><article class="panel"><div class="section-head"><div><span class="eyebrow">RECENT</span><h3>Last sessions</h3></div></div><div class="session-list" id="recentSessions"></div></article></div>
+        </section>
+
+        <section class="view" id="view-listen">
+          <div class="page-intro"><div><span class="eyebrow">LISTENING & SHADOWING</span><h2>Train your ear</h2><p>YouTube, podcast, series veya audiobook çalışmasını ölç.</p></div><button class="primary" id="startListenBtn">Start listening</button></div>
+          <div class="listen-summary" id="listenSummary"></div>
+          <div class="two-col"><article class="panel"><div class="section-head"><div><span class="eyebrow">THIS WEEK</span><h3>Listening minutes</h3></div></div><div class="bar-chart" id="listenChart"></div></article><article class="panel"><div class="section-head"><div><span class="eyebrow">RECENT</span><h3>Listening log</h3></div></div><div class="session-list" id="listeningLog"></div></article></div>
+        </section>
+
+        <section class="view" id="view-journal">
+          <div class="page-intro"><div><span class="eyebrow">OUTPUT PRACTICE</span><h2>English Journal</h2><p>Her gün kısa yaz. Kusursuz olmak değil, üretmek hedef.</p></div><button class="primary" id="newJournalBtn">New entry</button></div>
+          <div class="journal-layout"><article class="panel journal-prompt"><span class="eyebrow">TODAY'S PROMPT</span><h3 id="journalPrompt">What did you do today?</h3><p class="muted">5–8 cümle yeterli. Bildiğin İngilizceyle anlat.</p><button class="secondary" id="writePromptBtn">Write now</button></article><article class="panel"><div class="section-head"><div><span class="eyebrow">STREAK</span><h3 id="journalStreak">0 journal days</h3></div><span class="big-mini-stat" id="journalWords">0 words</span></div><div class="mini-calendar" id="journalMiniCalendar"></div></article></div>
+          <div class="journal-list" id="journalList"></div>
+        </section>
+
+        <section class="view" id="view-vocabulary">
+          <div class="page-intro"><div><span class="eyebrow">ACTIVE VOCABULARY</span><h2>Words & chunks</h2><p>Tek kelimeden çok, konuşmada kullanacağın kalıpları biriktir.</p></div><button class="primary" id="addWordBtn">Add word / chunk</button></div>
+          <div class="toolbar"><input id="wordSearch" type="search" placeholder="Search words, meanings or examples…"><select id="wordFilter"><option value="all">All status</option><option value="new">New</option><option value="learning">Learning</option><option value="familiar">Familiar</option><option value="mastered">Mastered</option></select></div>
+          <div class="word-grid" id="wordGrid"></div>
+        </section>
+
+        <section class="view" id="view-review">
+          <div class="page-intro"><div><span class="eyebrow">SPACED REVIEW</span><h2>Daily review</h2><p>Bugün tekrar zamanı gelen kartları kısa bir turla pekiştir.</p></div><span class="review-count" id="dueCount">0 due</span></div>
+          <article class="review-shell panel" id="reviewShell"></article>
+        </section>
+
+        <section class="view" id="view-quiz">
+          <div class="page-intro"><div><span class="eyebrow">ACTIVE RECALL</span><h2>Vocabulary Quiz</h2><p>Kayıtlı kelimelerinden otomatik mini test oluştur.</p></div><button class="primary" id="newQuizBtn">New quiz</button></div>
+          <div class="quiz-stats" id="quizStats"></div>
+          <article class="quiz-shell panel" id="quizShell"></article>
+        </section>
+
+        <section class="view" id="view-library">
+          <div class="page-intro"><div><span class="eyebrow">YOUR LIBRARY</span><h2>Reading route</h2><p>Şimdi okudukların, sıradakiler ve bitirdiklerin.</p></div><button class="primary" id="addBookBtn">Add book</button></div>
+          <div class="segmented" id="bookFilters"><button class="active" data-book-filter="all">All</button><button data-book-filter="reading">Reading</button><button data-book-filter="planned">Next</button><button data-book-filter="finished">Finished</button></div>
+          <div class="book-grid" id="bookGrid"></div>
+        </section>
+
+        <section class="view" id="view-insights">
+          <div class="page-intro"><div><span class="eyebrow">ANALYTICS</span><h2>Your progress in numbers</h2><p>Okuma, dinleme, kelime ve üretim alışkanlığını birlikte gör.</p></div></div>
+          <div class="insight-grid" id="insightCards"></div>
+          <div class="two-col analytics-cols"><article class="panel"><div class="section-head"><div><span class="eyebrow">LAST 7 DAYS</span><h3>Study minutes</h3></div></div><div class="bar-chart" id="barChart"></div></article><article class="panel"><div class="section-head"><div><span class="eyebrow">PERSONAL BESTS</span><h3>Milestones</h3></div></div><div class="best-list" id="bestList"></div></article></div>
+          <article class="panel calendar-panel"><div class="section-head"><div><span class="eyebrow">MONTHLY CALENDAR</span><h3 id="calendarTitle">Month</h3></div><div class="calendar-actions"><button class="icon-button" id="prevMonth">‹</button><button class="ghost-button" id="todayMonth">Today</button><button class="icon-button" id="nextMonth">›</button></div></div><div class="month-calendar" id="monthCalendar"></div></article>
+          <article class="panel"><div class="section-head"><div><span class="eyebrow">LAST 12 WEEKS</span><h3>Consistency map</h3></div></div><div class="heatmap large" id="insightsHeatmap"></div></article>
+        </section>
+
+        <section class="view" id="view-progress">
+          <div class="page-intro"><div><span class="eyebrow">LEVEL & ROADMAP</span><h2>Your English journey</h2><p>A2 → B1 → B2 yolunda gerçek çalışma sinyallerini takip et.</p></div></div>
+          <article class="level-hero panel" id="levelHero"></article>
+          <article class="path-progress panel"><div class="path-line"><div class="path-fill" id="pathFill"></div><span class="path-node done">A2</span><span class="path-node mid">B1</span><span class="path-node end">B2</span></div><div class="path-summary"><b id="pathPct">0%</b><span>roadmap progress</span></div></article>
+          <div class="stage-grid" id="stageGrid"></div>
+          <div class="section-title-row"><div><span class="eyebrow">ACHIEVEMENTS</span><h3>Milestones</h3></div><span id="achievementCount">0 unlocked</span></div>
+          <div class="achievement-grid" id="achievementGrid"></div>
+        </section>
+
+        <section class="view" id="view-settings">
+          <div class="page-intro"><div><span class="eyebrow">SYSTEM</span><h2>Settings & backup</h2><p>Hedeflerini, görünümü ve verilerini yönet.</p></div></div>
+          <div class="settings-grid">
+            <form class="panel form-stack" id="settingsForm"><div class="section-head"><div><span class="eyebrow">GOALS</span><h3>Daily targets</h3></div></div><label>Daily reading goal <input type="number" id="goalMinutes" min="5" max="180"></label><label>Weekly reading goal <input type="number" id="goalWeekly" min="30" max="1260"></label><label>Daily vocabulary goal <input type="number" id="goalWords" min="1" max="30"></label><label>Daily listening goal <input type="number" id="goalListening" min="5" max="120"></label><label>Theme<select id="themeSelect"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><button class="primary" type="submit">Save settings</button></form>
+            <article class="panel"><div class="section-head"><div><span class="eyebrow">DATA</span><h3>Backup & restore</h3></div></div><p class="muted">Verilerin bu cihazdaki tarayıcıda saklanır. JSON yedeği alman önerilir.</p><div class="backup-actions"><button class="secondary" id="exportBtn">Export JSON</button><label class="ghost-button">Import JSON<input type="file" id="importFile" accept="application/json" hidden></label><button class="danger-button" id="resetBtn">Reset all data</button></div><div class="migration-note" id="migrationNote"></div></article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Mobil menü">
+    <button data-view="today" class="active"><span>⌂</span>Today</button>
+    <button data-view="read"><span>◐</span>Read</button>
+    <button data-view="listen"><span>◉</span>Listen</button>
+    <button data-view="vocabulary"><span>Aa</span>Words</button>
+    <button id="mobileMoreBtn"><span>•••</span>More</button>
+  </nav>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <dialog class="modal" id="wordDialog"><form method="dialog" class="modal-card" id="wordForm"><div class="modal-head"><div><span class="eyebrow">VOCABULARY</span><h3>Add word / chunk</h3></div><button value="cancel" class="icon-button" aria-label="Kapat">×</button></div><label>Word or chunk<input id="wordText" required placeholder="figure out"></label><label>Meaning<input id="wordMeaning" required placeholder="anlamak / çözmek"></label><label>Example sentence<textarea id="wordExample" placeholder="I couldn't figure out what he meant."></textarea></label><label>Source<input id="wordSource" placeholder="The Last Leaf"></label><div class="modal-actions"><button value="cancel" class="ghost-button">Cancel</button><button value="default" class="primary" id="saveWordBtn">Save word</button></div></form></dialog>
+
+  <dialog class="modal" id="bookDialog"><form method="dialog" class="modal-card" id="bookForm"><div class="modal-head"><div><span class="eyebrow">LIBRARY</span><h3>Add a book</h3></div><button value="cancel" class="icon-button">×</button></div><label>Title<input id="bookTitle" required></label><label>Author<input id="bookAuthor"></label><div class="form-two"><label>Total pages<input id="bookPages" type="number" min="1" value="100"></label><label>Level<select id="bookLevel"><option>A2</option><option selected>B1</option><option>B1–B2</option><option>B2</option></select></label></div><label>Status<select id="bookStatus"><option value="planned">Next</option><option value="reading">Reading now</option><option value="finished">Finished</option></select></label><div class="modal-actions"><button value="cancel" class="ghost-button">Cancel</button><button value="default" class="primary" id="saveBookBtn">Add book</button></div></form></dialog>
+
+  <dialog class="focus-dialog" id="focusDialog"><div class="focus-mode"><div class="focus-mode-top"><button class="focus-close" id="focusClose">×</button><div class="focus-badge">READING SESSION</div><button class="focus-quick-word" id="focusWord">+ Word</button></div><div class="focus-content"><div class="focus-book-mini" id="fmBook">Book</div><h2 id="fmTitle">Book title</h2><p id="fmPages">Page 1 → ?</p><div class="big-timer" id="bigTimer">00:00</div><div class="timer-state" id="timerState">Ready</div><div class="focus-controls"><button class="focus-secondary" id="timerReset">Reset</button><button class="focus-main" id="timerToggle">Start</button><button class="focus-secondary" id="finishSession">Finish</button></div></div></div></dialog>
+
+  <dialog class="modal" id="finishDialog"><form method="dialog" class="modal-card wide" id="finishForm"><div class="modal-head"><div><span class="eyebrow">SESSION COMPLETE</span><h3>Save your reading</h3></div><button value="cancel" class="icon-button">×</button></div><div class="session-result"><div><b id="resultMinutes">0</b><span>minutes</span></div><div><b id="resultPages">0</b><span>pages</span></div><div><b id="resultWords">0</b><span>words captured</span></div></div><div class="form-two"><label>Start page<input id="sessionStartPage" type="number" min="0"></label><label>End page<input id="sessionEndPage" type="number" min="0"></label></div><label>How much did you understand?<div class="rating-row" id="ratingRow"><button type="button" data-rating="1">1</button><button type="button" data-rating="2">2</button><button type="button" data-rating="3" class="active">3</button><button type="button" data-rating="4">4</button><button type="button" data-rating="5">5</button></div></label><label>Write 2–5 sentences in English<textarea id="sessionSummary" placeholder="Today I read about…"></textarea></label><div class="modal-actions"><button value="cancel" class="ghost-button">Cancel</button><button value="default" class="primary" id="saveSessionBtn">Save session</button></div></form></dialog>
+
+  <dialog class="focus-dialog" id="listenDialog"><div class="focus-mode listen-focus"><div class="focus-mode-top"><button class="focus-close" id="listenClose">×</button><div class="focus-badge">LISTENING SESSION</div><button class="focus-quick-word" id="listenShadowToggle">Shadowing: OFF</button></div><div class="focus-content"><div class="focus-book-mini" id="listenTypeLabel">VIDEO / PODCAST</div><h2 id="listenFocusTitle">Listening practice</h2><label class="focus-input-wrap">Source title<input id="listenSourceTitle" placeholder="e.g. Easy English — Street Interviews"></label><div class="big-timer" id="listenTimer">00:00</div><div class="timer-state" id="listenTimerState">Ready</div><div class="focus-controls"><button class="focus-secondary" id="listenReset">Reset</button><button class="focus-main" id="listenToggle">Start</button><button class="focus-secondary" id="finishListening">Finish</button></div></div></div></dialog>
+
+  <dialog class="modal" id="listenFinishDialog"><form method="dialog" class="modal-card wide"><div class="modal-head"><div><span class="eyebrow">LISTENING COMPLETE</span><h3>Save this practice</h3></div><button value="cancel" class="icon-button">×</button></div><div class="session-result"><div><b id="listenResultMinutes">0</b><span>minutes</span></div><div><b id="listenResultMode">Listen</b><span>mode</span></div><div><b id="listenResultPhrases">0</b><span>phrases</span></div></div><label>Content type<select id="listenContentType"><option>Video</option><option>Podcast</option><option>Audiobook</option><option>Series / Movie</option><option>Conversation</option></select></label><label>Useful phrases (one per line)<textarea id="listenPhrases" placeholder="That makes sense.&#10;I was about to…"></textarea></label><label>Notes<textarea id="listenNotes" placeholder="What was difficult? What did you understand?"></textarea></label><div class="modal-actions"><button value="cancel" class="ghost-button">Cancel</button><button value="default" class="primary" id="saveListeningBtn">Save listening</button></div></form></dialog>
+
+  <dialog class="modal" id="journalDialog"><form method="dialog" class="modal-card wide" id="journalForm"><div class="modal-head"><div><span class="eyebrow">ENGLISH JOURNAL</span><h3>New entry</h3></div><button value="cancel" class="icon-button">×</button></div><label>Title<input id="journalTitle" placeholder="My day / What I learned"></label><label>Prompt<input id="journalPromptInput"></label><label>Write in English<textarea id="journalText" class="journal-editor" required placeholder="Today I…"></textarea></label><div class="editor-meta"><span id="journalWordCounter">0 words</span><select id="journalConfidence"><option value="3">Confidence 3/5</option><option value="1">Confidence 1/5</option><option value="2">Confidence 2/5</option><option value="4">Confidence 4/5</option><option value="5">Confidence 5/5</option></select></div><div class="modal-actions"><button value="cancel" class="ghost-button">Cancel</button><button value="default" class="primary" id="saveJournalBtn">Save entry</button></div></form></dialog>
+
+  <dialog class="modal" id="bookDetailDialog"><div class="modal-card book-detail-card"><div class="modal-head"><div><span class="eyebrow">BOOK DETAIL</span><h3 id="bdTitle">Book</h3></div><button class="icon-button" id="closeBookDetail">×</button></div><div id="bookDetailContent"></div></div></dialog>
+
+  <dialog class="modal" id="moreDialog"><div class="modal-card mobile-more-card"><div class="modal-head"><div><span class="eyebrow">NAVIGATION</span><h3>More</h3></div><button class="icon-button" id="closeMore">×</button></div><div class="more-grid"><button data-more-view="journal">Journal</button><button data-more-view="review">Review</button><button data-more-view="quiz">Quiz</button><button data-more-view="library">Library</button><button data-more-view="insights">Insights</button><button data-more-view="progress">Progress</button><button data-more-view="settings">Settings</button></div></div></dialog>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
