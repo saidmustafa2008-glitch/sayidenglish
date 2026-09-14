@@ -22,12 +22,17 @@ export const weekMinutes = (state) => sum(weekKeys(), (d) => minutesFor(state, d
 export const weekStudyMinutes = (state) => sum(weekKeys(), (d) => studyMinutesFor(state, d));
 export const activeDaysWeek = (state) => weekKeys().filter((d) => studyMinutesFor(state, d) > 0 || journalFor(state, d).length).length;
 function activeDateSet(state) {
-  return new Set([
+  const set = new Set([
     ...state.sessions.filter((s) => s.minutes > 0).map((s) => s.date),
     ...state.listening.filter((s) => s.minutes > 0).map((s) => s.date),
-    ...state.journal.filter((j) => j.text.trim()).map((j) => j.date)
+    ...state.journal.filter((j) => String(j.text || '').trim()).map((j) => j.date),
+    ...state.words.filter((w) => w.lastReview).map((w) => w.lastReview),
+    ...(state.quizHistory || []).map((q) => q.date)
   ]);
+  return set;
 }
+export const activeDays = (state) => activeDateSet(state);
+export const reviewsOn = (state, date) => state.words.filter((w) => w.lastReview === date).length;
 export function streak(state) {
   const active = activeDateSet(state);
   let count = 0;
@@ -86,13 +91,58 @@ export const dueWords = (state, date = dayKey()) => state.words.filter((w) => (w
 export const chunkWords = (state) => state.words.filter((w) => w.chunk || String(w.word || '').trim().split(/\s+/).length > 1);
 export const wordsFromBook = (state, book) => {
   if (!book) return [];
-  if (book.id) { const byId = state.words.filter((w) => w.bookId === book.id); if (byId.length) return byId; }
+  const seen = new Set(), out = [];
+  const push = (w) => { if (!seen.has(w.id)) { seen.add(w.id); out.push(w); } };
+  // Explicit V3 links first, then legacy V2/V2.1 source-text matches (union, not either/or).
+  if (book.id) state.words.filter((w) => w.bookId && w.bookId === book.id).forEach(push);
   const key = String(book.title || '').toLowerCase().slice(0, 12);
-  return state.words.filter((w) => String(w.source || '').toLowerCase().includes(key));
+  if (key) state.words.filter((w) => !w.bookId && String(w.source || '').toLowerCase().includes(key)).forEach(push);
+  return out;
 };
 export function dayDetail(state, date) {
   const sessions = sessionsFor(state, date), listening = listeningFor(state, date), journal = journalFor(state, date);
   const words = state.words.filter((w) => String(w.createdAt || '').slice(0, 10) === date);
   const quizzes = state.quizHistory.filter((q) => q.date === date);
-  return { sessions, listening, journal, words, quizzes, minutes: sum(sessions, (s) => s.minutes), listenMinutes: sum(listening, (s) => s.minutes), pages: sum(sessions, pagesForSession) };
+  return { sessions, listening, journal, words, quizzes, reviews: reviewsOn(state, date), minutes: sum(sessions, (s) => s.minutes), listenMinutes: sum(listening, (s) => s.minutes), pages: sum(sessions, pagesForSession) };
+}
+// Escape user text before it ever reaches RegExp.
+export const escReg = (s) => String(s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+// Honest quiz generation: every kind has genuinely distinct behavior.
+// Returns { items } or { error } — never fakes a format it cannot build.
+export function buildQuizItems(words, n = 10) {
+  const valid = (words || []).filter((w) => String(w.word || '').trim() && String(w.meaning || '').trim());
+  const meanings = [...new Set(valid.map((w) => String(w.meaning)))];
+  const english = [...new Set(valid.map((w) => String(w.word)))];
+  if (valid.length < 4 || meanings.length < 4 || english.length < 4) return { error: 'need-4' };
+  const lastWords = [...new Set(valid.filter((w) => String(w.word).trim().split(/\s+/).length > 1).map((w) => String(w.word).trim().split(/\s+/).pop().toLowerCase()))];
+  const items = [];
+  for (const w of shuffle(valid).slice(0, n)) {
+    const expr = String(w.word), meaning = String(w.meaning);
+    const eligible = ['en-tr', 'tr-en'];
+    const ex = String(w.example || '');
+    const blankable = ex && new RegExp(escReg(expr), 'i').test(ex);
+    if (blankable) eligible.push('blank');
+    const parts = expr.trim().split(/\s+/);
+    if (parts.length > 1 && lastWords.length >= 4) eligible.push('chunk');
+    const kind = eligible[Math.floor(Math.random() * eligible.length)];
+    if (kind === 'tr-en') {
+      const distract = shuffle(english.filter((x) => x !== expr)).slice(0, 3);
+      if (distract.length < 3) { items.push(enTr(expr, meaning, meanings)); continue; }
+      items.push({ kind, wordId: w.id, word: expr, meaning, prompt: `Which English says “${meaning}”?`, context: ex.slice(0, 120), options: shuffle([expr, ...distract]), answer: expr });
+    } else if (kind === 'blank') {
+      const sentence = ex.replace(new RegExp(escReg(expr), 'i'), '＿＿＿');
+      const distract = shuffle(valid.filter((x) => x.id !== w.id && x.word !== expr).map((x) => String(x.word))).slice(0, 3);
+      items.push({ kind, wordId: w.id, word: expr, meaning, prompt: sentence, context: `Complete the sentence · means “${meaning}”`, options: shuffle([expr, ...distract]), answer: expr });
+    } else if (kind === 'chunk') {
+      const head = parts.slice(0, -1).join(' '), tail = parts[parts.length - 1];
+      const distract = shuffle(lastWords.filter((x) => x !== tail.toLowerCase())).slice(0, 3);
+      items.push({ kind, wordId: w.id, word: expr, meaning, prompt: `${head} ＿＿＿`, context: `Complete the chunk · “${expr}” = “${meaning}”`, options: shuffle([tail, ...distract]), answer: tail });
+    } else items.push(enTr(expr, meaning, meanings, w.id, ex));
+  }
+  return { items };
+  function enTr(expr, meaning, meanings, id, ex = '') {
+    const distract = shuffle(meanings.filter((x) => x !== meaning)).slice(0, 3);
+    return { kind: 'en-tr', wordId: id, word: expr, meaning, prompt: `What does “${expr}” mean?`, context: String(ex).slice(0, 120), options: shuffle([meaning, ...distract]), answer: meaning };
+  }
 }

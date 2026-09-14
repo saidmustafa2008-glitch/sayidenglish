@@ -82,7 +82,7 @@
   <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="capSave">Save <kbd>↵</kbd></button></div>
 </form></dialog>
 
-<dialog id="sessionDialog" aria-label="Reading focus"><div class="modal-card wide" style="text-align:center">
+<dialog id="sessionDialog" aria-label="Reading focus"><div class="modal-card wide modal-center">
   <div class="focus-wrap">
     <div class="focus-eyebrow">READING SESSION</div>
     <h2 class="focus-title" id="fTitle">Book</h2>
@@ -102,22 +102,22 @@
 <dialog id="finishDialog" aria-label="Save reading session"><form method="dialog" class="modal-card wide" id="finishForm">
   <div class="modal-head"><div><div class="eyebrow">SESSION SUMMARY</div><h3>What did you read?</h3></div>
   <button value="cancel" class="icon-btn" aria-label="Close">×</button></div>
-  <div class="insight-trio" style="margin:0"><div><b id="rMin">0</b><span>minutes</span></div><div><b id="rPages">0</b><span>pages</span></div><div><b id="rWords">0</b><span>words captured</span></div></div>
+  <div class="insight-trio trio-flat"><div><b id="rMin">0</b><span>minutes</span></div><div><b id="rPages">0</b><span>pages</span></div><div><b id="rWords">0</b><span>words captured</span></div></div>
   <div class="form-2">
     <label class="field">Start page<input type="number" id="sessStart" min="0" value="0"></label>
     <label class="field">End page<input type="number" id="sessEnd" min="0" value="0"></label>
   </div>
-  <div><div class="eyebrow" style="margin-bottom:8px">COMPREHENSION · 1–5</div><div class="vocab-tools" id="rateRow" role="radiogroup" aria-label="Comprehension"></div></div>
+  <div><div class="eyebrow push-down-xs">COMPREHENSION · 1–5</div><div class="vocab-tools" id="rateRow" role="radiogroup" aria-label="Comprehension"></div></div>
   <label class="field">Short summary in English (2–5 sentences)<textarea id="sessSummary" placeholder="Today I read about…"></textarea></label>
   <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="sessSave">Save session</button></div>
 </form></dialog>
 
-<dialog id="listenDialog" aria-label="Listening session"><div class="modal-card wide" style="text-align:center">
+<dialog id="listenDialog" aria-label="Listening session"><div class="modal-card wide modal-center">
   <div class="focus-wrap">
     <div class="focus-eyebrow">LISTENING · SHADOWING</div>
     <h2 class="focus-title">Train your ear</h2>
-    <label class="field" style="text-align:left;max-width:480px;margin:14px auto 0">Source title<input type="text" id="lisTitle" placeholder="Easy English — street interviews"></label>
-    <div class="vocab-tools" style="justify-content:center;margin-top:12px" id="lisTypeRow"></div>
+    <label class="field focus-field">Source title<input type="text" id="lisTitle" placeholder="Easy English — street interviews"></label>
+    <div class="vocab-tools vocab-center" id="lisTypeRow"></div>
     <div class="big-timer tabular" id="lTimer">00:00</div>
     <div class="timer-state" id="lState">Ready</div>
     <div class="focus-controls">
@@ -130,10 +130,10 @@
   </div>
 </div></dialog>
 
-<dialog id="listenFinishDialog" aria-label="Save listening"><form method="dialog" class="modal-card wide">
+<dialog id="listenFinishDialog" aria-label="Save listening"><form method="dialog" class="modal-card wide" id="listenFinishForm">
   <div class="modal-head"><div><div class="eyebrow">LISTENING SAVED</div><h3>What did you hear?</h3></div>
   <button value="cancel" class="icon-btn" aria-label="Close">×</button></div>
-  <div class="insight-trio" style="margin:0"><div><b id="lrMin">0</b><span>minutes</span></div><div><b id="lrMode">Listen</b><span>mode</span></div><div><b id="lrPhrases">0</b><span>phrases</span></div></div>
+  <div class="insight-trio trio-flat"><div><b id="lrMin">0</b><span>minutes</span></div><div><b id="lrMode">Listen</b><span>mode</span></div><div><b id="lrPhrases">0</b><span>phrases</span></div></div>
   <div class="form-2">
     <label class="field">Difficulty 1–5<select id="lisDiff"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
     <label class="field">Comprehension 1–5<select id="lisComp"><option value="0">Skip</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
@@ -178,13 +178,25 @@
     <label class="field">Prompt<input type="text" id="jPrompt"></label>
     <div class="editor-wrap"><textarea class="editor" id="jText" required placeholder="Today I…"></textarea></div>
     <div class="editor-meta"><span id="jCount">0 words</span>
-      <label style="display:flex;gap:8px;align-items:center">Confidence <select id="jConf"><option value="1">1/5</option><option value="2">2/5</option><option value="3" selected>3/5</option><option value="4">4/5</option><option value="5">5/5</option></select></label>
+      <label class="inline-check">Confidence <select id="jConf"><option value="1">1/5</option><option value="2">2/5</option><option value="3" selected>3/5</option><option value="4">4/5</option><option value="5">5/5</option></select></label>
     </div>
   </div>
   <div class="modal-actions"><button value="cancel" class="btn ghost">Cancel</button><button value="default" class="btn primary" id="jSave">Save entry</button></div>
 </form></dialog>
 
 <div class="toast" id="toast" role="status"></div>
+
+<dialog id="moreDialog" aria-label="More sections"><div class="modal-card sheet">
+  <div class="modal-head"><div><div class="eyebrow">BROWSE</div><h3>More</h3></div>
+  <button class="icon-btn" id="moreClose" aria-label="Close">×</button></div>
+  <div class="more-list" id="moreList"></div>
+</div></dialog>
+
+<dialog id="importDialog" aria-label="Confirm backup import"><div class="modal-card">
+  <div class="modal-head"><div><div class="eyebrow">BACKUP · CONFIRM</div><h3>Replace this device's data?</h3></div></div>
+  <div id="importSummary"></div>
+  <div class="modal-actions"><button class="btn ghost" id="importCancel">Keep my data</button><button class="btn accent" id="importConfirm">Replace with backup</button></div>
+</div></dialog>
 <script>
 window.__sayidBootTimer = setTimeout(function () {
   if (!window.__sayidBooted) { var b = document.getElementById('bootError'); if (b) b.hidden = false; }

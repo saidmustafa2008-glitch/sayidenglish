@@ -110,10 +110,33 @@ export function loadState() {
 export function saveState(state) { localStorage.setItem(V2_KEY, JSON.stringify(normalize(state))); }
 export function resetState() { localStorage.removeItem(V2_KEY); return clone(seed); }
 export function importState(raw) {
-  if (!raw || typeof raw !== 'object') throw new Error('Invalid backup: not an object');
+  const check = validateBackup(raw);
+  if (!check.ok) throw new Error(check.reason);
   const normalized = normalize(raw);
   saveState(normalized);
   return normalized;
+}
+// Structural trust check: rejects unrelated JSON before it can overwrite real data.
+// Accepts V1 / V2 / V2.1 / V3 shapes. Returns { ok, reason, summary }.
+export function validateBackup(raw) {
+  const bad = (reason) => ({ ok: false, reason });
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return bad('Not a Sayid English backup: top level must be an object.');
+  const lists = ['books', 'words', 'sessions', 'listening', 'journal', 'quizHistory'];
+  const present = lists.filter((k) => raw[k] !== undefined);
+  if (present.length < 2) return bad('Not a Sayid English backup: expected data lists are missing.');
+  for (const k of present) if (!Array.isArray(raw[k])) return bad(`Not a valid backup: “${k}” must be a list.`);
+  if (raw.profile !== undefined && (typeof raw.profile !== 'object' || !raw.profile)) return bad('Not a valid backup: “profile” is broken.');
+  if (raw.goals !== undefined && (typeof raw.goals !== 'object' || !raw.goals)) return bad('Not a valid backup: “goals” is broken.');
+  if (raw.theme !== undefined && !['system', 'light', 'dark'].includes(raw.theme)) return bad('Not a valid backup: unknown theme value.');
+  const n = (k) => (Array.isArray(raw[k]) ? raw[k].length : 0);
+  return {
+    ok: true, reason: '',
+    summary: {
+      version: raw.version || (raw.migratedFromV1 ? '1.x' : 'unknown'),
+      books: n('books'), sessions: n('sessions'), words: n('words'),
+      listening: n('listening'), journal: n('journal'), quizzes: n('quizHistory')
+    }
+  };
 }
 export function exportState(state) { return JSON.stringify({ ...state, version: 3.0, exportedAt: nowISO() }, null, 2); }
 export { uid, dayKey };

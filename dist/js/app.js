@@ -1,5 +1,5 @@
-import { loadState, saveState, resetState, importState, exportState, uid, dayKey, APP_VERSION } from './storage.js';
-import { sum, dateShift, lastNDays, sessionsFor, listeningFor, journalFor, minutesFor, listenMinutesFor, studyMinutesFor, pagesForSession, totalPages, totalMinutes, totalListening, shadowingMinutes, masteredWords, finishedBooks, journalWordCount, currentBook, weekKeys, weekMinutes, weekStudyMinutes, activeDaysWeek, streak, longestStreak, xp, levelInfo, roadmap, avgComprehension, avgSession, bestSession, bestPages, quizAverage, monthItems, dueWords, chunkWords, wordsFromBook, dayDetail } from './stats.js';
+import { loadState, saveState, resetState, importState, exportState, validateBackup, uid, dayKey, APP_VERSION } from './storage.js';
+import { sum, dateShift, lastNDays, journalFor, minutesFor, listenMinutesFor, studyMinutesFor, pagesForSession, totalPages, totalMinutes, totalListening, shadowingMinutes, masteredWords, finishedBooks, journalWordCount, currentBook, weekKeys, weekMinutes, activeDaysWeek, activeDays, reviewsOn, streak, longestStreak, xp, levelInfo, roadmap, avgComprehension, avgSession, quizAverage, monthItems, dueWords, chunkWords, wordsFromBook, dayDetail, buildQuizItems } from './stats.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -13,14 +13,17 @@ const wd2 = (k) => new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format
 
 let state = loadState();
 let view = 'today';
-let vocabFilter = 'all', vocabQuery = '';
+let vocabFilter = 'all', vocabQuery = '', vocabLimit = 120;
 let bookFilter = 'all';
-let reviewQueue = [], reviewIdx = 0, revealed = false;
+let reviewQueue = [], reviewIdx = 0, revealed = false, mistakeMode = false;
+let requeued = new Set();
 let quiz = null;
 let calCursor = new Date();
 let rating = 3, lisType = 'Video', lisShadow = false;
-let R = { sec: 0, run: false, h: null, captured: 0 };
-let L = { sec: 0, run: false, h: null };
+let pendingImport = null;
+// Timestamp-based timers: elapsed comes from Date.now(), the interval only repaints.
+let R = { acc: 0, startedAt: 0, run: false, h: null, captured: 0 };
+let L = { acc: 0, startedAt: 0, run: false, h: null };
 let palIdx = 0;
 
 const ICONS = {
@@ -49,7 +52,25 @@ const PROMPTS = ['What did you do today?', 'What was the best part of your day?'
 const promptOfDay = () => PROMPTS[Math.abs(new Date().getDate() + new Date().getMonth() * 31) % PROMPTS.length];
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2300); }
-function applyTheme() { document.body.dataset.theme = state.theme || 'system'; }
+function applyTheme() {
+  const th = state.theme || 'system';
+  document.body.dataset.theme = th;
+  let meta = document.querySelector('meta[name="theme-color"]:not([media])');
+  const light = '#F5F4F0', dark = '#141518';
+  if (th === 'light' || th === 'dark') {
+    if (!meta) { meta = document.createElement('meta'); meta.name = 'theme-color'; document.head.appendChild(meta); }
+    meta.content = th === 'light' ? light : dark;
+  } else if (meta) meta.remove();
+}
+// The book actually being read right now (no fallback). currentBook() keeps the
+// discovery fallback for empty states; anything that starts work uses activeBook().
+function activeBook() { return state.books.find((b) => b.status === 'reading') || null; }
+function promoteToReading(book) {
+  if (!book || book.status === 'finished') return book;
+  state.books.forEach((b) => { if (b.status === 'reading') b.status = 'paused'; });
+  book.status = 'reading';
+  return book;
+}
 function persist(msg) { saveState(state); applyTheme(); renderAll(); if (msg) toast(msg); }
 function cover(b) { return `<div class="book-cover" style="background:${esc(b.color)}" aria-hidden="true"><span>${esc(b.title)}</span></div>`; }
 function bookPct(b) { return Math.min(100, Math.round((b.currentPage || 0) / Math.max(1, b.totalPages) * 100)); }
@@ -63,9 +84,36 @@ function buildNav() {
   }</div></div>`).join('');
   const bottom = [
     { id: 'today', label: 'Today' }, { id: 'read', label: 'Read' }, { id: 'review', label: 'Review' },
-    { id: 'vocabulary', label: 'Words' }, { id: 'journal', label: 'Journal' }
+    { id: 'library', label: 'Library' }
   ];
-  $('#bottomNav').innerHTML = bottom.map((b) => `<button data-view="${b.id}" class="${view === b.id ? 'active' : ''}">${ICONS[b.id] || ''}${esc(b.label)}</button>`).join('');
+  $('#bottomNav').innerHTML = bottom.map((b) => `<button data-view="${b.id}" class="${view === b.id ? 'active' : ''}" aria-current="${view === b.id ? 'page' : 'false'}">${ICONS[b.id] || ''}${esc(b.label)}</button>`).join('')
+    + `<button id="moreBtn" class="${['listen', 'vocabulary', 'quiz', 'journal', 'insights', 'progress', 'settings'].includes(view) ? 'active' : ''}" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>More</button>`;
+  on('moreBtn', 'click', openMore);
+}
+const MORE_ITEMS = [
+  { id: 'listen', label: 'Listening' }, { id: 'vocabulary', label: 'Vocabulary' },
+  { id: 'quiz', label: 'Quiz' }, { id: 'journal', label: 'Journal' },
+  { id: 'insights', label: 'Insights' }, { id: 'progress', label: 'Learning path' },
+  { id: 'settings', label: 'Settings' }
+];
+function openMore() {
+  const due = dueWords(state).length;
+  const sub = (id) => id === 'vocabulary' ? `${plural(state.words.length, 'word', 'words')} · ${due} due`
+    : id === 'journal' ? plural(state.journal.length, 'entry', 'entries')
+    : id === 'quiz' ? `${quizAverage(state)}% avg` : id === 'listen' ? `${totalListening(state)} min total` : '';
+  $('#moreList').innerHTML = MORE_ITEMS.map((m) => `<button data-view="${m.id}" aria-current="${view === m.id ? 'page' : 'false'}"><span><b>${esc(m.label)}</b>${sub(m.id) ? `<small>${esc(sub(m.id))}</small>` : ''}</span><span aria-hidden="true">→</span></button>`).join('');
+  $('#moreDialog').showModal();
+}
+// Shared heat-cell renderer: intensity from timed minutes, ring when the day was
+// active through journal / review / quiz only (coherent with streak).
+function heatCells(state, days, large = false) {
+  const hMax = Math.max(1, ...days.map((d) => studyMinutesFor(state, d)));
+  const act = activeDays(state);
+  return days.map((d) => {
+    const v = studyMinutesFor(state, d), l = v ? Math.min(4, Math.ceil(v / hMax * 4)) : 0;
+    const mark = !l && act.has(d) ? ' mark' : '';
+    return `<i class="${l ? 'l' + l : ''}${mark}" title="${d}: ${v}m${mark ? ' · active (journal/review/quiz)' : ''}"></i>`;
+  }).join('');
 }
 function setView(v) {
   if (!TITLES[v]) v = 'today';
@@ -87,7 +135,6 @@ function todayPlan() {
   const due = dueWords(state, k).length;
   const lisMin = listenMinutesFor(state, k);
   const wrote = journalFor(state, k).length > 0;
-  const reviewedToday = state.words.some((w) => w.lastReview === k);
   return [
     { n: '01', title: 'Read', desc: `${readMin} / ${state.goals.minutes} min`, done: readMin >= state.goals.minutes, go: 'read' },
     { n: '02', title: 'Review', desc: due === 0 ? (state.words.length ? 'Caught up' : 'Add words while reading') : plural(due, 'card', 'cards') + ' due', done: state.words.length > 0 && due === 0, go: 'review' },
@@ -96,7 +143,9 @@ function todayPlan() {
   ];
 }
 function renderToday() {
-  const b = currentBook(state), k = today();
+  const active = activeBook(state), next = currentBook(state);
+  const b = active || next;
+  const k = today();
   const readMin = minutesFor(state, k);
   const remain = Math.max(0, state.goals.weekly - weekMinutes(state));
   const plan = todayPlan();
@@ -105,19 +154,18 @@ function renderToday() {
   const wkMax = Math.max(state.goals.minutes, ...wk.map((d) => minutesFor(state, d)), 1);
   const last = [...state.sessions].sort((a, b2) => String(b2.createdAt).localeCompare(String(a.createdAt)))[0];
   const heat = lastNDays(84);
-  const hMax = Math.max(1, ...heat.map((d) => studyMinutesFor(state, d)));
   $('#view-today').innerHTML = `
     <p class="today-date">${fmtLong(new Date())} · <span class="muted">${streak(state)}-day streak · ${activeDaysWeek(state)}/7 active</span></p>
     <div class="continue-block">
-      <div class="continue-kicker"><span class="eyebrow">CONTINUE READING</span><span class="small muted">${done}/4 today · ${remain} min left this week</span></div>
+      <div class="continue-kicker"><span class="eyebrow">${active ? 'CONTINUE READING' : 'UP NEXT'}</span><span class="small muted">${done}/4 today · ${remain} min left this week</span></div>
       <h2 class="continue-title">${b ? esc(b.title) : 'Add your first book'}</h2>
       <div class="continue-meta">
-        ${b ? `<span>Page <b>${b.currentPage}</b> of ${b.totalPages}</span><span>${esc(b.author)} · ${esc(b.level)}</span>` : '<span>Open Library to shelve a story book.</span>'}
-        ${last ? `<span>Yesterday: ${esc(last.bookTitle || 'Reading')} · ${last.minutes}m</span>` : ''}
+        ${b ? `<span>Page <b>${b.currentPage}</b> of ${b.totalPages}</span><span>${esc(b.author)} · ${esc(b.level)}</span>${active ? '' : '<span>Not started yet</span>'}` : '<span>Open Library to shelve a story book.</span>'}
+        ${last ? `<span>Last: ${esc(last.bookTitle || 'Reading')} · ${last.minutes}m</span>` : ''}
       </div>
       <div class="progress-line" role="progressbar" aria-valuenow="${Math.min(100, Math.round(readMin / state.goals.minutes * 100))}" aria-valuemin="0" aria-valuemax="100"><span style="width:${Math.min(100, Math.round(readMin / state.goals.minutes * 100))}%"></span></div>
       <div class="continue-actions">
-        <button class="btn accent" data-act="start-read">${b ? 'Continue reading' : 'Open library'}</button>
+        ${b ? `<button class="btn accent" data-act="start-read">${active ? 'Continue reading' : 'Start this book'}</button>` : `<button class="btn accent" data-view="library">Open library</button>`}
         <button class="btn" data-view="review">Review ${dueWords(state).length} cards</button>
         <button class="btn ghost" data-view="journal">Write journal</button>
       </div>
@@ -125,7 +173,7 @@ function renderToday() {
     <div class="today-cols">
       <div>
         <div class="section-head"><h3>Today's agenda</h3><span class="small muted">Read → Review → Listen → Write</span></div>
-        <ul class="agenda">${plan.map((p) => `<li data-view="${p.go}" class="${p.done ? 'done' : ''}" tabindex="0" role="button" aria-label="${p.title}: ${p.desc}"><span class="num">${p.n}</span><span><b>${p.title}</b><small>${esc(p.desc)}</small></span><span class="state">${p.done ? 'DONE' : 'OPEN →'}</span></li>`).join('')}</ul>
+        <ul class="agenda">${plan.map((p) => `<li class="${p.done ? 'done' : ''}"><button class="agenda-btn" data-view="${p.go}" aria-label="${esc(p.title)}: ${esc(p.desc)}${p.done ? ' (done)' : ''}"><span class="num">${p.n}</span><span><b>${esc(p.title)}</b><small>${esc(p.desc)}</small></span><span class="state">${p.done ? 'DONE' : 'OPEN →'}</span></button></li>`).join('')}</ul>
       </div>
       <div>
         <div class="margin-note"><h4>THIS WEEK · READING</h4>
@@ -135,8 +183,8 @@ function renderToday() {
           <div class="week-strip">${wk.map((d) => `<div class="week-cell ${d === k ? 'today' : ''}"><div class="week-bar"><i style="height:${Math.max(3, minutesFor(state, d) / wkMax * 100)}%"></i></div><span>${wd2(d)}</span></div>`).join('')}</div>
         </div>
         <div class="margin-note"><h4>CONSISTENCY · 12 WEEKS</h4>
-          <div class="heat" aria-hidden="true">${heat.map((d) => { const v = studyMinutesFor(state, d); const l = v ? Math.min(4, Math.ceil(v / hMax * 4)) : 0; return `<i class="${l ? 'l' + l : ''}" title="${d}: ${v}m"></i>`; }).join('')}</div>
-          <p class="small muted" style="margin:8px 0 0">Every square is a day. Darker means more study minutes.</p>
+          <div class="heat" aria-hidden="true">${heatCells(state, heat)}</div>
+          <p class="small muted heat-cap">Every square is a day. Bars show timed minutes; a ring means active through journal, review or quiz.</p>
         </div>
       </div>
     </div>`;
@@ -144,17 +192,18 @@ function renderToday() {
 
 /* ---------- READ ---------- */
 function renderRead() {
-  const b = currentBook(state);
+  const active = activeBook(state);
+  const b = active || currentBook(state);
   const rows = [...state.sessions].sort((a, c) => String(c.createdAt).localeCompare(String(a.createdAt))).slice(0, 8);
   $('#view-read').innerHTML = `
     <div class="page-head"><div><div class="eyebrow">READ · FOCUS</div><h2>Reading sessions</h2>
       <p class="page-lede">One calm session at a time. Capture words with <kbd>W</kbd>, finish with pages and a short English summary.</p></div>
       <div class="actions"><button class="btn primary" data-act="start-read">Start session</button></div></div>
     <div class="read-cols">
-      <div class="section"><div class="section-head"><h3>Current book</h3>${b ? `<span class="status-tag reading">${esc(b.status.toUpperCase())}</span>` : ''}</div>
+      <div class="section"><div class="section-head"><h3>${active ? 'Current book' : 'Up next'}</h3>${b ? `<span class="status-tag ${b.status}">${esc(b.status === 'planned' ? 'UP NEXT' : b.status.toUpperCase())}</span>` : ''}</div>
         ${b ? `<div class="book-hero">${cover(b)}<div><h3 class="book-title">${esc(b.title)}</h3><p class="book-sub">${esc(b.author)} · ${esc(b.level)} · page ${b.currentPage} of ${b.totalPages} · ${bookPct(b)}%</p>
           <div class="progress-line"><span style="width:${bookPct(b)}%"></span></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn accent" data-act="start-read">Continue reading</button><button class="btn" data-book="${b.id}">Book detail</button></div></div></div>`
+          <div class="btn-row"><button class="btn accent" data-act="start-read">${active ? 'Continue reading' : 'Start this book'}</button><button class="btn" data-book="${b.id}">Book detail</button></div></div></div>`
         : `<div class="empty"><h4>No book on the shelf yet</h4><p>Shelve one graded story book to begin. You can track pages from there.</p><button class="btn primary" data-view="library">Open library</button></div>`}
       </div>
       <div class="section"><div class="section-head"><h3>Recent sessions</h3><span class="small muted">${state.sessions.length} total</span></div>
@@ -206,16 +255,17 @@ function filteredWords() {
 function renderVocab() {
   const list = filteredWords();
   const b = currentBook(state);
+  const shown = list.slice(0, vocabLimit);
   $('#view-vocabulary').innerHTML = `
     <div class="page-head"><div><div class="eyebrow">WORDS · CHUNKS</div><h2>Vocabulary</h2>
       <p class="page-lede">Collect usable chunks — <em>make a decision</em>, <em>figure out</em> — not random dictionary words. ${b ? `Currently reading: <b>${esc(b.title)}</b>.` : ''}</p></div>
       <div class="actions"><button class="btn primary" data-act="capture">Add word / chunk</button></div></div>
-    <div class="vocab-tools" role="search">
+    <div class="vocab-tools" role="group" aria-label="Vocabulary filters">
       <input type="search" id="vq" placeholder="Search words, meanings, examples…" value="${esc(vocabQuery)}" aria-label="Search vocabulary">
-      ${VFILTERS.map(([v, l]) => `<button class="chip ${vocabFilter === v ? 'active' : ''}" data-vf="${v}">${l}</button>`).join('')}
+      ${VFILTERS.map(([v, l]) => `<button class="chip ${vocabFilter === v ? 'active' : ''}" data-vf="${v}" aria-pressed="${vocabFilter === v}">${l}</button>`).join('')}
     </div>
-    <p class="small muted">${list.length} of ${state.words.length} shown · ${dueWords(state).length} due for review · ${chunkWords(state).length} chunks</p>
-    ${list.length ? `<div class="word-list">${list.slice(0, 120).map((w) => `
+    <p class="small muted">Showing ${shown.length} of ${list.length} · ${dueWords(state).length} due for review · ${chunkWords(state).length} chunks</p>
+    ${list.length ? `<div class="word-list">${shown.map((w) => `
       <div class="word-row"><div>
         <h4>${esc(w.word)}${w.chunk ? '<span class="chunk-mark">CHUNK</span>' : ''}</h4>
         <div class="meaning">${esc(w.meaning)}</div>
@@ -223,61 +273,80 @@ function renderVocab() {
         <div class="src">${w.source ? 'From: ' + esc(w.source) + ' · ' : ''}next review ${esc(w.nextReview || '—')} · ${w.reviews} reviews</div>
       </div><div class="side"><span class="pill ${w.status}">${w.status}</span>
         <div class="row-btns"><button class="link-btn" data-cycle="${w.id}">Advance</button><button class="link-btn danger" data-delword="${w.id}">Delete</button></div>
-      </div></div>`).join('')}</div>`
+      </div></div>`).join('')}</div>
+      ${list.length > shown.length ? `<div class="center-row"><button class="btn" data-act="vocab-more">Show more (${list.length - shown.length} left)</button></div>` : ''}`
     : `<div class="empty"><h4>${vocabFilter === 'due' ? 'Nothing due — you are caught up' : 'No words match'}</h4><p>${vocabFilter === 'due' ? 'Words you capture while reading will appear here when ready for review.' : 'Capture your first chunk from the book you are reading.'}</p><button class="btn primary" data-act="capture">Capture a chunk</button></div>`}`;
   const q = $('#vq');
-  q?.addEventListener('input', () => { vocabQuery = q.value; renderVocab(); const nq = $('#vq'); nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); });
+  q?.addEventListener('input', () => { vocabQuery = q.value; vocabLimit = 120; renderVocab(); const nq = $('#vq'); nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); });
 }
 
 /* ---------- REVIEW ---------- */
 function startReview(reset = true) {
-  if (reset || !reviewQueue.length) { reviewQueue = dueWords(state).sort((a, b) => String(a.nextReview || '').localeCompare(String(b.nextReview || ''))); reviewIdx = 0; revealed = false; }
+  if (reset || !reviewQueue.length || mistakeMode) {
+    reviewQueue = dueWords(state).sort((a, b) => String(a.nextReview || '').localeCompare(String(b.nextReview || '')));
+    reviewIdx = 0; revealed = false; mistakeMode = false; requeued = new Set();
+  }
   renderReview();
+}
+// Temporary mistake session: replays missed quiz words WITHOUT touching spaced-repetition dates.
+function startMistakeReview(wordIds) {
+  const words = (wordIds || []).map((id) => state.words.find((w) => w.id === id)).filter(Boolean);
+  if (!words.length) { toast('Those words are gone — nothing to review.'); return; }
+  reviewQueue = words; reviewIdx = 0; revealed = false; mistakeMode = true; requeued = new Set();
+  setView('review'); renderReview();
 }
 function renderReview() {
   const due = dueWords(state).length;
   const el = $('#view-review');
+  const eyebrow = mistakeMode ? 'MISTAKE REVIEW · NO RESCHEDULING' : 'REVIEW · MEMORY';
   if (!reviewQueue.length) {
-    el.innerHTML = `<div class="page-head"><div><div class="eyebrow">REVIEW · MEMORY</div><h2>Daily review</h2></div><span class="pill mastered">${due} due</span></div>
-      <div class="study-stage"><div class="eyebrow">ALL CLEAR</div><h3 class="card-h" style="font-size:28px">Nothing due today.</h3>
+    el.innerHTML = `<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h2>Daily review</h2></div><span class="pill mastered">${due} due</span></div>
+      <div class="study-stage"><div class="eyebrow">ALL CLEAR</div><h3 class="card-h card-h-sm">Nothing due today.</h3>
       <p class="muted">You're caught up. Words you add while reading will appear here when they're ready.</p>
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:14px"><button class="btn" data-view="vocabulary">Browse words</button><button class="btn primary" data-view="quiz">Take a quiz</button></div></div>`;
+      <div class="btn-row"><button class="btn" data-view="vocabulary">Browse words</button><button class="btn primary" data-view="quiz">Take a quiz</button></div></div>`;
     return;
   }
   if (reviewIdx >= reviewQueue.length) {
-    el.innerHTML = `<div class="page-head"><div><div class="eyebrow">REVIEW · MEMORY</div><h2>Daily review</h2></div><span class="pill mastered">0 due</span></div>
+    el.innerHTML = `<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h2>Daily review</h2></div><span class="pill mastered">0 due</span></div>
       <div class="study-stage"><div class="eyebrow">SESSION COMPLETE</div><div class="score-big tabular">${reviewQueue.length}</div>
-      <p class="muted">cards reviewed. Come back tomorrow — spacing does the work.</p>
-      <button class="btn primary" data-act="review-again">Review again</button></div>`;
+      <p class="muted">${mistakeMode ? 'Mistakes replayed. Dates untouched — they stay on their normal schedule.' : 'cards reviewed. Come back tomorrow — spacing does the work.'}</p>
+      <div class="btn-row"><button class="btn" data-view="quiz">Back to quiz</button><button class="btn primary" data-act="review-again">Review again</button></div></div>`;
     return;
   }
   const w = reviewQueue[reviewIdx];
-  el.innerHTML = `<div class="page-head"><div><div class="eyebrow">REVIEW · MEMORY</div><h2>Daily review</h2></div><span class="pill learning">${due} due</span></div>
+  el.innerHTML = `<div class="page-head"><div><div class="eyebrow">${eyebrow}</div><h2>Daily review</h2></div><span class="pill learning">${mistakeMode ? `${reviewQueue.length - reviewIdx} left` : `${due} due`}</span></div>
     <div class="study-stage">
       <div class="eyebrow">CARD ${reviewIdx + 1} / ${reviewQueue.length} · ${esc(w.status.toUpperCase())}</div>
       <h3 class="card-h">${esc(w.word)}</h3>
       ${w.source ? `<p class="small muted">from ${esc(w.source)}</p>` : ''}
       ${revealed ? `<div class="answer">${esc(w.meaning)}</div>${w.example ? `<div class="ctx">“${esc(w.example)}”</div>` : ''}
         <div class="grade-grid">
-          <button data-grade="again">Again<small>forget</small></button>
+          <button data-grade="again">Again<small>${mistakeMode ? 'replay later' : 'today again'}</small></button>
           <button data-grade="hard">Hard <kbd>2</kbd><small>struggled</small></button>
           <button data-grade="good">Good <kbd>3</kbd><small>recalled</small></button>
           <button data-grade="easy">Easy <kbd>4</kbd><small>instant</small></button>
         </div>`
       : `<p class="muted">Say the meaning aloud, then reveal.</p>
-        <button class="btn primary" data-act="reveal" style="margin-top:12px">Show answer <kbd>Space</kbd></button>`}
+        <button class="btn primary push-down" data-act="reveal">Show answer <kbd>Space</kbd></button>`}
     </div>`;
 }
 function grade(w, g) {
-  const mult = { again: 0, hard: 1.2, good: 2, easy: 3 };
-  if (g === 'again') { w.interval = 0; w.status = 'learning'; }
-  else {
-    const base = { again: 0, hard: 1, good: 3, easy: 7 }[g];
-    w.interval = Math.max(base, Math.round((w.interval || 1) * mult[g]));
-    if (w.reviews >= 4 && g !== 'hard') w.status = 'mastered';
-    else if (w.reviews >= 1) w.status = 'familiar';
-    else w.status = 'learning';
+  if (mistakeMode) { reviewIdx++; revealed = false; renderReview(); return; }
+  if (g === 'again') {
+    // "I forgot this": stays due today AND reappears at the end of this session (once).
+    w.interval = 0; w.status = 'learning';
+    w.nextReview = today(); w.lastReview = today(); w.reviews = (w.reviews || 0) + 1;
+    if (!requeued.has(w.id)) { requeued.add(w.id); reviewQueue.push(w); }
+    saveState(state); reviewIdx++; revealed = false; renderAll(); renderReview();
+    toast('Again — it will reappear at the end.');
+    return;
   }
+  const mult = { hard: 1.2, good: 2, easy: 3 };
+  const base = { hard: 1, good: 3, easy: 7 }[g];
+  w.interval = Math.max(base, Math.round((w.interval || 1) * mult[g]));
+  if (w.reviews >= 4 && g !== 'hard') w.status = 'mastered';
+  else if (w.reviews >= 1) w.status = 'familiar';
+  else w.status = 'learning';
   w.nextReview = dayKey(dateShift(w.interval || 0));
   w.lastReview = today();
   w.reviews = (w.reviews || 0) + 1;
@@ -285,43 +354,32 @@ function grade(w, g) {
 }
 
 /* ---------- QUIZ ---------- */
+const QUIZ_KIND_LABEL = { 'en-tr': 'EN → TR', 'tr-en': 'TR → EN', blank: 'FILL THE BLANK', chunk: 'COMPLETE THE CHUNK' };
 function buildQuiz() {
-  const valid = state.words.filter((w) => w.word.trim() && w.meaning.trim());
-  const uniq = [...new Set(valid.map((w) => w.meaning))];
-  if (valid.length < 4 || uniq.length < 4) { toast('Save at least 4 words with meanings first.'); return; }
-  const pick = [...valid].sort(() => Math.random() - 0.5).slice(0, 10);
-  const types = ['en-tr', 'tr-en', 'blank', 'chunk'];
-  quiz = { items: pick.map((w) => {
-    const type = types[Math.floor(Math.random() * types.length)];
-    const distract = uniq.filter((x) => x !== w.meaning).sort(() => Math.random() - 0.5).slice(0, 3);
-    let q, opts = [w.meaning, ...distract].sort(() => Math.random() - 0.5), answer = w.meaning;
-    if (type === 'tr-en') { q = `Which English says “${w.meaning}”?`; const pool = valid.filter((x) => x.word !== w.word).sort(() => Math.random() - 0.5).slice(0, 3).map((x) => x.word); opts = [w.word, ...pool].sort(() => Math.random() - 0.5); answer = w.word; }
-    else if (type === 'blank' && w.example && w.example.toLowerCase().includes(w.word.toLowerCase().split(' ')[0])) { q = w.example.replace(new RegExp(esc(w.word.split(' ')[0]), 'i'), '＿＿＿'); }
-    else if (type === 'blank') { q = `Complete: “${w.word}” — use it in one sentence. Which meaning fits?`; }
-    else q = `What does “${w.word}” mean?`;
-    return { word: w.word, answer, options: opts, prompt: q, hint: w.example || w.source || '' };
-  }), i: 0, score: 0, answered: false, chosen: null, mistakes: [] };
+  const res = buildQuizItems(state.words, 10);
+  if (res.error) { quiz = null; toast('Quiz için anlamı yazılmış en az 4 farklı kelime gerekli.'); renderQuiz(); return; }
+  quiz = { items: res.items, i: 0, score: 0, answered: false, chosen: null, done: false, mistakes: [] };
   renderQuiz();
 }
 function renderQuiz() {
   const el = $('#view-quiz');
   const avg = quizAverage(state), last = state.quizHistory.at(-1);
   let body;
-  if (!quiz) body = `<div class="study-stage"><div class="eyebrow">FROM YOUR ${state.words.length} WORDS</div><h3 class="card-h" style="font-size:28px">Ready for active recall?</h3><p class="muted">Up to 10 questions · 4 formats · built from your own vocabulary.</p><button class="btn primary" data-act="quiz-start" ${state.words.filter((w) => w.meaning.trim()).length < 4 ? 'disabled' : ''}>Start quiz</button></div>`;
+  if (!quiz) body = `<div class="study-stage"><div class="eyebrow">FROM YOUR ${state.words.length} WORDS</div><h3 class="card-h card-h-sm">Ready for active recall?</h3><p class="muted">Up to 10 questions · EN→TR, TR→EN, blanks and chunk completions — built from your own vocabulary.</p><button class="btn primary" data-act="quiz-start" ${state.words.filter((w) => w.meaning.trim()).length < 4 ? 'disabled' : ''}>Start quiz</button></div>`;
   else if (quiz.done) {
     const pct = Math.round((quiz.score / quiz.items.length) * 100);
     body = `<div class="study-stage"><div class="eyebrow">RESULT</div><div class="score-big tabular">${pct}%</div>
-      <p><b>${quiz.score} / ${quiz.items.length}</b> correct · ${pct >= 80 ? 'Strong recall — use these in your journal.' : pct >= 60 ? 'Good base — review the misses once.' : 'Review the words, then try again later.'}</p>
-      ${quiz.mistakes.length ? `<div class="mistake-list">${quiz.mistakes.map((m) => `<div><b>${esc(m.word)}</b> → ${esc(m.answer)}${m.hint ? ` <span class="muted">· ${esc(m.hint.slice(0, 80))}</span>` : ''}</div>`).join('')}</div>` : '<p class="muted">No mistakes. Clean run.</p>'}
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px"><button class="btn" data-view="review">Review mistakes</button><button class="btn primary" data-act="quiz-start">Quiz again</button></div></div>`;
+      <p><b>${quiz.score} / ${quiz.items.length}</b> correct · ${pct >= 80 ? 'Strong recall — use these in your journal.' : pct >= 60 ? 'Good base — replay the misses once.' : 'Replay the misses, then try again later.'}</p>
+      ${quiz.mistakes.length ? `<div class="mistake-list">${quiz.mistakes.map((m) => `<div><b>${esc(m.word)}</b> → ${esc(m.answer)}${m.context ? ` <span class="muted">· ${esc(String(m.context).slice(0, 80))}</span>` : ''}</div>`).join('')}</div>` : '<p class="muted">No mistakes. Clean run.</p>'}
+      <div class="btn-row">${quiz.mistakes.length ? `<button class="btn primary" data-act="quiz-mistakes">Review mistakes (${quiz.mistakes.length})</button>` : ''}<button class="btn" data-act="quiz-start">Quiz again</button></div></div>`;
   } else {
     const it = quiz.items[quiz.i];
-    body = `<div class="study-stage" style="text-align:left"><div class="progress-line"><span style="width:${(quiz.i / quiz.items.length) * 100}%"></span></div>
-      <div class="eyebrow">QUESTION ${quiz.i + 1} / ${quiz.items.length}</div>
-      <h3 style="font-family:var(--serif);font-size:24px;margin:10px 0 4px">${esc(it.prompt)}</h3>
-      ${it.hint && !quiz.answered ? `<p class="small muted">Context: ${esc(it.hint.slice(0, 120))}</p>` : ''}
+    body = `<div class="study-stage quiz-left"><div class="progress-line"><span style="width:${(quiz.i / quiz.items.length) * 100}%"></span></div>
+      <div class="eyebrow">QUESTION ${quiz.i + 1} / ${quiz.items.length} · ${QUIZ_KIND_LABEL[it.kind] || ''}</div>
+      <h3 class="quiz-q">${esc(it.prompt)}</h3>
+      ${it.context && !quiz.answered ? `<p class="small muted">${esc(it.context.slice(0, 140))}</p>` : ''}
       <div class="quiz-opts">${it.options.map((o) => `<button class="quiz-opt ${quiz.answered ? (o === it.answer ? 'correct' : o === quiz.chosen ? 'wrong' : '') : ''}" data-opt="${esc(o)}" ${quiz.answered ? 'disabled' : ''}>${esc(o)}</button>`).join('')}</div>
-      ${quiz.answered ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px"><span class="small">${quiz.chosen === it.answer ? 'Correct.' : 'Answer: ' + esc(it.answer)}</span><button class="btn primary" data-act="quiz-next">${quiz.i === quiz.items.length - 1 ? 'Finish' : 'Next →'}</button></div>` : ''}</div>`;
+      ${quiz.answered ? `<div class="quiz-foot"><span class="small">${quiz.chosen === it.answer ? 'Correct.' : 'Answer: ' + esc(it.answer)}</span><button class="btn primary" data-act="quiz-next">${quiz.i === quiz.items.length - 1 ? 'Finish' : 'Next →'}</button></div>` : ''}</div>`;
   }
   el.innerHTML = `<div class="page-head"><div><div class="eyebrow">QUIZ · RECALL</div><h2>Vocabulary quiz</h2><p class="page-lede">Average ${avg}% · ${state.quizHistory.length} quizzes · last ${last ? `${last.score}/${last.total}` : '—'}</p></div>
     <div class="actions"><button class="btn primary" data-act="quiz-start">New quiz</button></div></div>${body}`;
@@ -336,16 +394,16 @@ function renderJournal() {
       <p class="page-lede">Short beats perfect. 5–8 sentences in English, every day.</p></div>
       <div class="actions"><button class="btn primary" data-act="journal-new">New entry</button></div></div>
     <div class="journal-cols">
-      <div class="section" style="padding-top:0"><div class="section-head"><h3>Today's prompt</h3></div>
-        <p style="font-family:var(--serif);font-size:22px;margin:0 0 6px">“${esc(promptOfDay())}”</p>
+      <div class="section flush-top"><div class="section-head"><h3>Today's prompt</h3></div>
+        <p class="prompt-line">“${esc(promptOfDay())}”</p>
         <button class="btn" data-act="journal-new">Write now →</button>
-        <hr class="rule" style="margin:20px 0">
+        <hr class="rule rule-space">
         <div class="section-head"><h3>Entries · ${entries.length}</h3><span class="small muted">${journalWordCount(state)} words total</span></div>
         ${entries.length ? entries.slice(0, 20).map((j) => `<article class="journal-entry"><small class="muted">${esc(j.date)} · confidence ${j.confidence}/5</small><h4>${esc(j.title || 'Journal entry')}</h4>${j.prompt ? `<small class="muted">Prompt: ${esc(j.prompt)}</small>` : ''}<p>${esc(j.text)}</p><button class="link-btn danger" data-deljournal="${j.id}">Delete</button></article>`).join('') : `<div class="empty"><h4>A blank page is normal</h4><p>Start with today's prompt — five honest sentences are enough.</p><button class="btn primary" data-act="journal-new">Write the first entry</button></div>`}
       </div>
       <div><div class="margin-note"><h4>WRITING DAYS · 28</h4>
         <div class="timeline-dots">${days.map((d) => `<i class="${journalFor(state, d).length ? 'on' : ''}" title="${d}"></i>`).join('')}</div>
-        <div class="stat-row" style="margin-top:10px"><span>Total entries</span><b>${state.journal.length}</b></div>
+        <div class="stat-row push-down-sm"><span>Total entries</span><b>${state.journal.length}</b></div>
         <div class="stat-row"><span>Words written</span><b>${journalWordCount(state)}</b></div>
         <p class="small muted">Tip: reuse one chunk you reviewed today in tonight's entry.</p></div>
       </div>
@@ -360,18 +418,18 @@ function renderLibrary() {
     <div class="page-head"><div><div class="eyebrow">SHELF · BOOKS</div><h2>Library</h2>
       <p class="page-lede">One book reading, the rest waiting. Finishing beats collecting.</p></div>
       <div class="actions"><button class="btn primary" data-act="book-new">Add book</button></div></div>
-    <div class="segmented" role="tablist">${BOOK_FILTERS.map(([v, l]) => `<button data-bf="${v}" class="${bookFilter === v ? 'active' : ''}">${l}</button>`).join('')}</div>
+    <div class="segmented" role="group" aria-label="Book shelf filter">${BOOK_FILTERS.map(([v, l]) => `<button data-bf="${v}" class="${bookFilter === v ? 'active' : ''}" aria-pressed="${bookFilter === v}">${l}</button>`).join('')}</div>
     ${list.length ? `<div class="shelf">${list.map((b) => `
       <div class="shelf-item">${cover(b)}<div>
         <span class="status-tag ${b.status}">${esc(b.status === 'planned' ? 'UP NEXT' : b.status.toUpperCase())} · ${esc(b.level)}</span>
         <h3>${esc(b.title)}</h3><p>${esc(b.author)} · page ${b.currentPage}/${b.totalPages} · ${bookPct(b)}%</p>
         <div class="mini-meter"><span style="width:${bookPct(b)}%"></span></div>
-        <div class="row-actions" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <div class="btn-row push-down-xs">
           ${b.status !== 'reading' ? `<button class="btn small" data-readbook="${b.id}">Read now</button>` : `<button class="btn small accent" data-act="start-read">Continue</button>`}
           <button class="btn small" data-book="${b.id}">Details</button>
           ${b.status !== 'finished' ? `<button class="btn small ghost" data-finishbook="${b.id}">Finish</button>` : ''}
           <button class="link-btn danger" data-delbook="${b.id}">Delete</button>
-        </div></div><div class="tabular" style="font-size:22px">${bookPct(b)}<span class="small muted">%</span></div>
+        </div></div><div class="tabular shelf-pct">${bookPct(b)}<span class="small muted">%</span></div>
       </div>`).join('')}</div>`
     : `<div class="empty"><h4>Nothing on this shelf</h4><p>Add the next story book you want to read.</p><button class="btn primary" data-act="book-new">Add a book</button></div>`}`;
 }
@@ -387,7 +445,7 @@ function openBook(id) {
     <div class="bd-hero">${cover(b)}<div><span class="status-tag ${b.status}">${esc(b.status.toUpperCase())} · ${esc(b.level)}</span>
       <h2>${esc(b.title)}</h2><p class="muted small">${esc(b.author)} · page ${b.currentPage} / ${b.totalPages} · ${bookPct(b)}%</p>
       <div class="progress-line"><span style="width:${bookPct(b)}%"></span></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">${b.status !== 'reading' ? `<button class="btn small" data-readbook="${b.id}">Read now</button>` : `<button class="btn small accent" data-act="start-read">Continue reading</button>`}</div></div></div>
+      <div class="btn-row">${b.status !== 'reading' ? `<button class="btn small" data-readbook="${b.id}">Read now</button>` : `<button class="btn small accent" data-act="start-read">Continue reading</button>`}</div></div></div>
     <div class="bd-stats"><div><b class="tabular">${mins}</b><span>minutes</span></div><div><b class="tabular">${pgs}</b><span>pages logged</span></div><div><b class="tabular">${ss.length}</b><span>sessions</span></div><div><b class="tabular">${comp}</b><span>comprehension</span></div></div>
     <div class="bd-sec"><h4>RECENT SESSIONS</h4>${ss.slice(-5).reverse().map((s) => `<div class="bd-row"><span>${esc(s.date)} · ${pagesForSession(s)} pages · ${s.rating}/5${s.summary ? ' · ' + esc(s.summary.slice(0, 70)) : ''}</span><b>${s.minutes}m</b></div>`).join('') || '<p class="small muted">No sessions for this book yet.</p>'}</div>
     <div class="bd-sec"><h4>VOCABULARY FROM THIS BOOK · ${words.length}</h4>${words.slice(0, 8).map((w) => `<div class="bd-row"><span>${esc(w.word)}</span><b>${esc(w.meaning)}</b></div>`).join('') || '<p class="small muted">Words you capture while reading this book link here automatically.</p>'}</div>`;
@@ -407,29 +465,30 @@ function renderInsights() {
   for (let i = 0; i < 42; i++) {
     const d = dateShift(i, start), key = dayKey(d);
     const r = minutesFor(state, key), l = listenMinutesFor(state, key), j = journalFor(state, key).length;
-    cal += `<button class="cal-day ${d.getMonth() !== calCursor.getMonth() ? 'other' : ''} ${key === k ? 'today' : ''}" data-day="${key}"><span class="n">${d.getDate()}</span>${r + l ? `<div class="m tabular">${r + l}m</div>` : ''}<span class="dots">${r ? '<i class="d-read"></i>' : ''}${l ? '<i class="d-listen"></i>' : ''}${j ? '<i class="d-journal"></i>' : ''}</span></button>`;
+    const other = reviewsOn(state, key) > 0 || state.quizHistory.some((q) => q.date === key);
+    cal += `<button class="cal-day ${d.getMonth() !== calCursor.getMonth() ? 'other' : ''} ${key === k ? 'today' : ''}" data-day="${key}"><span class="n">${d.getDate()}</span>${r + l ? `<div class="m tabular">${r + l}m</div>` : ''}<span class="dots">${r ? '<i class="d-read"></i>' : ''}${l ? '<i class="d-listen"></i>' : ''}${j ? '<i class="d-journal"></i>' : ''}${other ? '<i class="d-other"></i>' : ''}</span></button>`;
   }
   const heat = lastNDays(84);
-  const hMax = Math.max(1, ...heat.map((d) => studyMinutesFor(state, d)));
   $('#view-insights').innerHTML = `
     <div class="page-head"><div><div class="eyebrow">DATA · HABITS</div><h2>Insights</h2>
-      <p class="page-lede">Minutes, pages and words — nothing decorative. <span class="muted">● reading ● listening ● journal</span></p></div></div>
+      <p class="page-lede">Timed minutes plus daily presence — nothing decorative. <span class="muted">● reading ● listening ● journal ○ review/quiz</span></p></div></div>
     <div class="insight-trio">
-      <div><b class="tabular">${totalMinutes(state) + totalListening(state)}′</b><span>total study time</span></div>
+      <div><b class="tabular">${totalMinutes(state) + totalListening(state)}′</b><span>reading + listening (timed)</span></div>
       <div><b class="tabular">${totalPages(state)}</b><span>pages read · ${finishedBooks(state)} books finished</span></div>
       <div><b class="tabular">${state.words.length} · ${masteredWords(state)}</b><span>words saved · mastered</span></div>
     </div>
     <div class="read-cols">
       <div class="section"><div class="section-head"><h3>Last 7 days · ${wMin} min</h3><span class="small muted">reading + listening</span></div>
         <div class="bars">${wk.map((d) => `<div><div class="bar ${d === k ? 'today' : ''}"><i style="height:${Math.max(3, studyMinutesFor(state, d) / mx * 100)}%"></i></div><div class="bar-lbl">${wd2(d)}<br>${studyMinutesFor(state, d)}m</div></div>`).join('')}</div>
-        <hr class="rule" style="margin:18px 0"><div class="section-head"><h3>12-week consistency</h3></div>
-        <div class="heat large">${heat.map((d) => { const v = studyMinutesFor(state, d); const l = v ? Math.min(4, Math.ceil(v / hMax * 4)) : 0; return `<i class="${l ? 'l' + l : ''}" title="${d}: ${v}m"></i>`; }).join('')}</div>
+        <hr class="rule rule-space"><div class="section-head"><h3>12-week consistency</h3></div>
+        <div class="heat large">${heatCells(state, heat)}</div>
+        <p class="small muted heat-cap">Bars show timed minutes; a ring means active through journal, review or quiz.</p>
       </div>
-      <div class="section"><div class="cal-head"><div><div class="eyebrow">MONTH · ${esc(mName.toUpperCase())}</div><h3 style="font-family:var(--serif)">${sum(m.reading, (s) => s.minutes) + sum(m.listening, (s) => s.minutes)} min · ${m.journal.length} entries</h3></div>
-        <div style="display:flex;gap:6px"><button class="icon-btn" data-act="cal-prev" aria-label="Previous month">‹</button><button class="btn small" data-act="cal-today">Today</button><button class="icon-btn" data-act="cal-next" aria-label="Next month">›</button></div></div>
+      <div class="section"><div class="cal-head"><div><div class="eyebrow">MONTH · ${esc(mName.toUpperCase())}</div><h3 class="cal-total">${sum(m.reading, (s) => s.minutes) + sum(m.listening, (s) => s.minutes)} min · ${m.journal.length} entries</h3></div>
+        <div class="cal-nav"><button class="icon-btn" data-act="cal-prev" aria-label="Previous month">‹</button><button class="btn small" data-act="cal-today">Today</button><button class="icon-btn" data-act="cal-next" aria-label="Next month">›</button></div></div>
         <div class="cal-grid">${cal}</div>
-        <p class="small muted" style="margin-top:10px">Select any day to see sessions, pages, words and journal entries.</p>
-        <hr class="rule" style="margin:14px 0">
+        <p class="small muted push-down-sm">Select any day to see sessions, pages, words, reviews and journal entries.</p>
+        <hr class="rule rule-space-sm">
         <div class="stat-row"><span>Streak / longest</span><b>${streak(state)} / ${longestStreak(state)} days</b></div>
         <div class="stat-row"><span>Avg session</span><b>${avgSession(state).toFixed(0)} min</b></div>
         <div class="stat-row"><span>Comprehension</span><b>${avgComprehension(state).toFixed(1)} / 5</b></div>
@@ -444,11 +503,12 @@ function openDay(key) {
     <div class="stat-row"><span>Reading</span><b>${d.minutes} min · ${d.pages} pages · ${d.sessions.length} sessions</b></div>
     <div class="stat-row"><span>Listening</span><b>${d.listenMinutes} min · ${d.listening.length} logs</b></div>
     <div class="stat-row"><span>Journal</span><b>${d.journal.length} entries</b></div>
+    <div class="stat-row"><span>Reviews · quizzes</span><b>${d.reviews} cards · ${d.quizzes.length} quizzes</b></div>
     <div class="stat-row"><span>Words added</span><b>${d.words.length}</b></div>
     ${d.sessions.map((s) => `<div class="bd-row"><span>${esc(s.bookTitle)} · ${pagesForSession(s)} pg · ${s.rating}/5</span><b>${s.minutes}m</b></div>`).join('')}
     ${d.listening.map((s) => `<div class="bd-row"><span>${esc(s.source)}${s.shadowing ? ' · shadowing' : ''}</span><b>${s.minutes}m</b></div>`).join('')}
     ${d.journal.map((j) => `<div class="bd-row"><span>${esc(j.title)}</span><b>${String(j.text).split(/\s+/).filter(Boolean).length}w</b></div>`).join('')}
-    ${!d.sessions.length && !d.listening.length && !d.journal.length ? '<p class="small muted">A quiet day. Even 10 minutes of reading would mark it.</p>' : ''}`;
+    ${!d.sessions.length && !d.listening.length && !d.journal.length && !d.reviews && !d.quizzes.length ? '<p class="small muted">A quiet day. Even 10 minutes of reading would mark it.</p>' : ''}`;
   $('#dayDialog').showModal();
 }
 
@@ -501,12 +561,12 @@ function renderSettings() {
         </div></form>
       <div class="panel"><div class="section-head"><h3>Backup &amp; restore</h3></div>
         <p class="small muted">Format v${APP_VERSION}. V1 and V2 backups import safely; nothing is wiped without confirmation.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <div class="btn-row push-down">
           <button class="btn" id="expBtn">Export JSON</button>
-          <label class="btn ghost" style="cursor:pointer">Import JSON<input type="file" id="impFile" accept="application/json" hidden></label>
-          <button class="btn" id="resetBtn" style="color:#B3261E">Reset all data</button>
+          <label class="btn ghost pointer">Import JSON<input type="file" id="impFile" accept="application/json" hidden></label>
+          <button class="btn danger-text" id="resetBtn">Reset all data</button>
         </div>
-        <p class="small muted" id="storageInfo" style="margin-top:12px"></p></div>
+        <p class="small muted push-down" id="storageInfo"></p></div>
     </div>`;
   $('#gTheme').value = state.theme || 'system';
   try { $('#storageInfo').textContent = `${(JSON.stringify(state).length / 1024).toFixed(1)} KB stored · ${state.sessions.length} sessions · ${state.words.length} words · ${state.journal.length} entries`; } catch { /* noop */ }
@@ -524,68 +584,104 @@ function renderSettings() {
     a.href = url; a.download = `sayid-english-v3-${today()}.json`; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 800); toast('Backup exported.');
   });
-  $('#impFile').addEventListener('change', (e) => {
+  on('impFile', 'change', (e) => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = () => { try { state = importState(JSON.parse(r.result)); persist('Backup imported.'); } catch { toast('That file is not a valid backup.'); } };
+    r.onload = () => {
+      let parsed;
+      try { parsed = JSON.parse(r.result); }
+      catch { toast('That file is not valid JSON. Current data untouched.'); return; }
+      const check = validateBackup(parsed);
+      if (!check.ok) { toast(check.reason + ' Current data untouched.'); return; }
+      pendingImport = parsed;
+      const s = check.summary;
+      $('#importSummary').innerHTML = `
+        <div class="stat-row"><span>Backup version</span><b>v${esc(String(s.version))}</b></div>
+        <div class="stat-row"><span>Books</span><b>${s.books}</b></div>
+        <div class="stat-row"><span>Sessions</span><b>${s.sessions}</b></div>
+        <div class="stat-row"><span>Words</span><b>${s.words}</b></div>
+        <div class="stat-row"><span>Listening logs</span><b>${s.listening}</b></div>
+        <div class="stat-row"><span>Journal entries</span><b>${s.journal}</b></div>
+        <div class="stat-row"><span>Quizzes</span><b>${s.quizzes}</b></div>
+        <p class="small muted">This will REPLACE the data on this device. Export a backup first if unsure.</p>`;
+      $('#importDialog').showModal();
+    };
     r.readAsText(f); e.target.value = '';
   });
+}
   $('#resetBtn').addEventListener('click', () => {
     if (confirm('Delete ALL data on this device? Export a backup first.')) { state = resetState(); saveState(state); applyTheme(); renderAll(); toast('All data cleared.'); }
   });
 }
 
-/* ---------- timers / sessions ---------- */
-function fmtT(s) { return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
-function openReader() {
-  const b = currentBook(state);
+/* ---------- timers / sessions (timestamp-based, throttle-safe) ---------- */
+function fmtT(ms) { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+const elapsed = (t) => t.acc + (t.run ? Date.now() - t.startedAt : 0);
+const elapsedMin = (t) => Math.max(1, Math.round(elapsed(t) / 60000));
+function startClock(t) { if (!t.run) { t.startedAt = Date.now(); t.run = true; } }
+function pauseClock(t) { if (t.run) { t.acc = elapsed(t); t.run = false; } }
+function resetClock(t) { t.acc = 0; t.startedAt = 0; t.run = false; if (t.h) clearInterval(t.h); t.h = null; }
+function openReader(bookId) {
+  if ($('#sessionDialog').open) return;
+  let b = (bookId && state.books.find((x) => x.id === bookId)) || activeBook() || currentBook(state);
   if (!b) { toast('Add a book first.'); setView('library'); return; }
-  R = { sec: 0, run: false, h: null, captured: 0 };
+  if (b.status !== 'reading') { promoteToReading(b); saveState(state); }
+  resetClock(R); R.captured = 0;
   $('#fTitle').textContent = b.title;
   $('#fSub').textContent = `${b.author || 'Reading'} · ${b.level} · page ${b.currentPage} of ${b.totalPages}`;
   $('#fTimer').textContent = '00:00'; $('#fState').textContent = 'Ready'; $('#fToggle').textContent = 'Start';
   $('#sessionDialog').showModal();
 }
+function paintR() { $('#fTimer').textContent = fmtT(elapsed(R)); }
 function toggleR() {
-  R.run = !R.run;
-  if (R.run) R.h = setInterval(() => { R.sec++; $('#fTimer').textContent = fmtT(R.sec); }, 1000);
-  else clearInterval(R.h);
+  if (R.run) { pauseClock(R); clearInterval(R.h); R.h = null; }
+  else { startClock(R); R.h = setInterval(paintR, 250); }
   $('#fToggle').textContent = R.run ? 'Pause' : 'Start';
-  $('#fState').textContent = R.run ? 'Reading — stay with the text…' : R.sec ? 'Paused' : 'Ready';
+  $('#fState').textContent = R.run ? 'Reading — stay with the text…' : elapsed(R) > 0 ? 'Paused' : 'Ready';
 }
 function finishReader() {
-  R.run = false; clearInterval(R.h);
-  const b = currentBook(state), mins = Math.max(1, Math.round(R.sec / 60));
+  pauseClock(R); if (R.h) clearInterval(R.h); R.h = null;
+  const b = activeBook() || currentBook(state), mins = elapsedMin(R);
   $('#sessionDialog').close();
   $('#sessStart').value = b?.currentPage || 0; $('#sessEnd').value = b?.currentPage || 0;
   $('#rMin').textContent = mins; $('#rPages').textContent = '0'; $('#rWords').textContent = R.captured;
   rating = 3;
-  $('#rateRow').innerHTML = [1, 2, 3, 4, 5].map((n) => `<button type="button" class="chip ${n === 3 ? 'active' : ''}" data-rate="${n}">${n}</button>`).join('');
+  $('#rateRow').innerHTML = [1, 2, 3, 4, 5].map((n) => `<button type="button" class="chip ${n === 3 ? 'active' : ''}" data-rate="${n}" role="radio" aria-checked="${n === 3}">${n}</button>`).join('');
   $('#sessSummary').value = '';
   $('#finishDialog').showModal();
 }
 function saveReading() {
-  const b = currentBook(state); if (!b) return false;
+  const b = activeBook() || currentBook(state); if (!b) return false;
   const s = Number($('#sessStart').value || 0), e = Math.max(s, Number($('#sessEnd').value || s));
-  const mins = Math.max(1, Math.round(R.sec / 60));
+  const mins = elapsedMin(R);
   state.sessions.push({ id: uid('session'), date: today(), bookId: b.id, bookTitle: b.title, pageStart: s, pageEnd: e, minutes: mins, rating, summary: $('#sessSummary').value.trim(), createdAt: new Date().toISOString() });
   b.currentPage = Math.max(b.currentPage || 0, e);
   if (b.currentPage >= b.totalPages) { b.currentPage = b.totalPages; b.status = 'finished'; toast(`Book finished: ${b.title} — meaningful work.`); }
+  resetClock(R);
   persist(`Saved: ${mins} min · ${e - s} pages.`); return true;
 }
 function openListener() {
-  L = { sec: 0, run: false, h: null }; lisShadow = false; lisType = 'Video';
+  if ($('#listenDialog').open) return;
+  resetClock(L); lisShadow = false; lisType = 'Video';
   $('#lisTitle').value = ''; $('#lTimer').textContent = '00:00'; $('#lState').textContent = 'Ready';
   $('#lShadow').textContent = 'Shadowing: off'; $('#lShadow').setAttribute('aria-pressed', 'false');
-  $('#lisTypeRow').innerHTML = ['Video', 'Podcast', 'Audiobook', 'Series', 'Conversation'].map((t) => `<button class="chip ${t === 'Video' ? 'active' : ''}" data-ltype="${t}">${t}</button>`).join('');
+  $('#lisTypeRow').innerHTML = ['Video', 'Podcast', 'Audiobook', 'Series', 'Conversation'].map((t) => `<button class="chip ${t === 'Video' ? 'active' : ''}" data-ltype="${t}" aria-pressed="${t === 'Video'}">${t}</button>`).join('');
   $('#listenDialog').showModal();
 }
+function paintL() { $('#lTimer').textContent = fmtT(elapsed(L)); }
 function toggleL() {
-  L.run = !L.run;
-  if (L.run) L.h = setInterval(() => { L.sec++; $('#lTimer').textContent = fmtT(L.sec); }, 1000);
-  else clearInterval(L.h);
+  if (L.run) { pauseClock(L); clearInterval(L.h); L.h = null; }
+  else { startClock(L); L.h = setInterval(paintL, 250); }
   $('#lToggle').textContent = L.run ? 'Pause' : 'Start';
-  $('#lState').textContent = L.run ? (lisShadow ? 'Shadowing — repeat aloud…' : 'Listening…') : L.sec ? 'Paused' : 'Ready';
+  $('#lState').textContent = L.run ? (lisShadow ? 'Shadowing — repeat aloud…' : 'Listening…') : elapsed(L) > 0 ? 'Paused' : 'Ready';
+}
+function finishListening() {
+  pauseClock(L); if (L.h) clearInterval(L.h); L.h = null;
+  $('#listenDialog').close();
+  $('#lrMin').textContent = elapsedMin(L);
+  $('#lrMode').textContent = lisShadow ? 'Shadow' : 'Listen';
+  $('#lisPhrases').value = ''; $('#lisNotes').value = ''; $('#lrPhrases').textContent = '0';
+  $('#listenFinishDialog').showModal();
 }
 
 /* ---------- capture ---------- */
@@ -620,7 +716,7 @@ const ACTIONS = () => [
 function openPalette() { palIdx = 0; $('#paletteInput').value = ''; drawPalette(''); $('#paletteDialog').showModal(); setTimeout(() => $('#paletteInput').focus(), 40); }
 function drawPalette(q) {
   const list = ACTIONS().filter((a) => (a.t + ' ' + a.s).toLowerCase().includes(q.toLowerCase()));
-  $('#paletteList').innerHTML = list.length ? list.map((a, i) => `<button class="palette-item ${i === palIdx ? 'active' : ''}" data-pal="${i}" role="option"><b>${esc(a.t)}</b><small>${esc(a.s)}</small></button>`).join('') : '<p class="small muted" style="padding:12px">No matching action.</p>';
+  $('#paletteList').innerHTML = list.length ? list.map((a, i) => `<button class="palette-item ${i === palIdx ? 'active' : ''}" data-pal="${i}" role="option" aria-selected="${i === palIdx}"><b>${esc(a.t)}</b><small>${esc(a.s)}</small></button>`).join('') : '<p class="small muted palette-empty">No matching action.</p>';
   $('#paletteList')._items = list;
 }
 
@@ -639,6 +735,56 @@ function renderAll() {
 }
 
 /* ---------- events ---------- */
+function wireForm(formId, onSave) {
+  const f = document.getElementById(formId);
+  if (!f) return;
+  // Semantic submit: Enter in inputs saves; Cancel buttons keep native dialog-close.
+  f.addEventListener('submit', (e) => {
+    if (e.submitter && e.submitter.value === 'cancel') return;
+    e.preventDefault();
+    if (onSave()) { const d = f.closest('dialog'); if (d && d.open) d.close(); }
+  });
+}
+function syncTimerUI() {
+  const r = $('#fTimer'); if (r) r.textContent = fmtT(elapsed(R));
+  const ft = $('#fToggle'); if (ft) ft.textContent = R.run ? 'Pause' : 'Start';
+  const fs = $('#fState'); if (fs) fs.textContent = R.run ? 'Reading — stay with the text…' : elapsed(R) > 0 ? 'Paused' : 'Ready';
+  const l = $('#lTimer'); if (l) l.textContent = fmtT(elapsed(L));
+  const lt = $('#lToggle'); if (lt) lt.textContent = L.run ? 'Pause' : 'Start';
+  const ls = $('#lState'); if (ls) ls.textContent = L.run ? (lisShadow ? 'Shadowing — repeat aloud…' : 'Listening…') : elapsed(L) > 0 ? 'Paused' : 'Ready';
+}
+// Escape must never leave a hidden interval running: pause first, then confirm.
+function armTimerDialog(id, clock, label, paint) {
+  const d = document.getElementById(id);
+  if (!d) return;
+  d.addEventListener('cancel', (e) => {
+    if (clock.run || elapsed(clock) > 0) {
+      e.preventDefault();
+      pauseClock(clock); if (clock.h) { clearInterval(clock.h); clock.h = null; }
+      syncTimerUI(); paint();
+      if (confirm(`Close this ${label} session without saving? The timer is stopped.`)) { resetClock(clock); syncTimerUI(); paint(); d.close(); }
+    }
+  });
+  d.addEventListener('close', () => { if (clock.run) { pauseClock(clock); if (clock.h) { clearInterval(clock.h); clock.h = null; } } });
+}
+function addBookFromForm() {
+  const t = $('#bkTitle').value.trim(); if (!t) { toast('Title is required.'); return false; }
+  const st = $('#bkStatus').value;
+  if (st === 'reading') state.books.forEach((b) => { if (b.status === 'reading') b.status = 'paused'; });
+  state.books.push({ id: uid('book'), title: t, author: $('#bkAuthor').value.trim(), totalPages: Math.max(1, Number($('#bkPages').value || 100)), currentPage: st === 'finished' ? Number($('#bkPages').value || 100) : 0, level: $('#bkLevel').value, status: st, color: ['#253d58', '#754535', '#3c503c', '#5a4477', '#72533a'][state.books.length % 5] });
+  $('#bookForm').reset(); persist('Book shelved.'); return true;
+}
+function saveJournalFromForm() {
+  const t = $('#jText').value.trim(); if (!t) { toast('Write something first.'); return false; }
+  state.journal.push({ id: uid('journal'), date: today(), title: $('#jTitle').value.trim() || 'Journal entry', prompt: $('#jPrompt').value.trim(), text: t, confidence: Number($('#jConf').value), createdAt: new Date().toISOString() });
+  persist('Journal entry saved.'); return true;
+}
+function saveListeningFromForm() {
+  const phrases = $('#lisPhrases').value.split('\n').map((x) => x.trim()).filter(Boolean);
+  const mins = elapsedMin(L);
+  state.listening.push({ id: uid('listen'), date: today(), source: $('#lisTitle').value.trim() || 'Listening practice', contentType: lisType, minutes: mins, shadowing: lisShadow, difficulty: Number($('#lisDiff').value), comprehension: Number($('#lisComp').value), phrases, notes: $('#lisNotes').value.trim(), createdAt: new Date().toISOString() });
+  resetClock(L); persist(`Listening saved: ${mins} min.`); return true;
+}
 function bind() {
   document.addEventListener('click', (e) => {
     const v = e.target.closest('[data-view]');
@@ -652,6 +798,8 @@ function bind() {
       if (a === 'reveal') { revealed = true; renderReview(); }
       if (a === 'review-again') startReview(true);
       if (a === 'quiz-start') buildQuiz();
+      if (a === 'quiz-mistakes' && quiz && quiz.mistakes.length) { startMistakeReview(quiz.mistakes.map((m) => m.wordId)); return; }
+      if (a === 'vocab-more') { vocabLimit += 120; renderVocab(); return; }
       if (a === 'quiz-next') {
         if (quiz.i >= quiz.items.length - 1) { quiz.done = true; state.quizHistory.push({ id: uid('quiz'), date: today(), score: quiz.score, total: quiz.items.length, createdAt: new Date().toISOString() }); saveState(state); renderAll(); renderQuiz(); }
         else { quiz.i++; quiz.answered = false; quiz.chosen = null; renderQuiz(); }
@@ -665,7 +813,7 @@ function bind() {
     }
     const bk = e.target.closest('[data-book]'); if (bk) { openBook(bk.dataset.book); return; }
     const rb = e.target.closest('[data-readbook]');
-    if (rb) { state.books.forEach((b) => { if (b.status === 'reading') b.status = 'paused'; }); const b = state.books.find((x) => x.id === rb.dataset.readbook); if (b && b.status !== 'finished') b.status = 'reading'; persist('Current book updated.'); const d = $('#bookDetailDialog'); if (d.open) d.close(); return; }
+    if (rb) { const b = state.books.find((x) => x.id === rb.dataset.readbook); if (b && b.status !== 'finished') { promoteToReading(b); persist('Current book updated.'); } const d = $('#bookDetailDialog'); if (d && d.open) d.close(); return; }
     const fb = e.target.closest('[data-finishbook]');
     if (fb) { const b = state.books.find((x) => x.id === fb.dataset.finishbook); if (b) { b.status = 'finished'; b.currentPage = b.totalPages; } persist('Book finished. Well done.'); return; }
     const db = e.target.closest('[data-delbook]');
@@ -673,7 +821,7 @@ function bind() {
     const bf = e.target.closest('[data-bf]');
     if (bf) { bookFilter = bf.dataset.bf; renderLibrary(); return; }
     const vf = e.target.closest('[data-vf]');
-    if (vf) { vocabFilter = vf.dataset.vf; renderVocab(); return; }
+    if (vf) { vocabFilter = vf.dataset.vf; vocabLimit = 120; renderVocab(); return; }
     const cy = e.target.closest('[data-cycle]');
     if (cy) { const w = state.words.find((x) => x.id === cy.dataset.cycle); if (w) { const o = ['new', 'learning', 'familiar', 'mastered']; w.status = o[(o.indexOf(w.status) + 1) % o.length]; persist('Status advanced.'); } return; }
     const dw = e.target.closest('[data-delword]');
@@ -689,21 +837,22 @@ function bind() {
       renderQuiz(); return;
     }
     const rt = e.target.closest('[data-rate]');
-    if (rt) { rating = Number(rt.dataset.rate); $$('#rateRow .chip').forEach((c) => c.classList.toggle('active', c === rt)); return; }
+    if (rt) { rating = Number(rt.dataset.rate); $$('#rateRow .chip').forEach((c) => { const on_ = c === rt; c.classList.toggle('active', on_); c.setAttribute('aria-checked', String(on_)); }); return; }
     const lt = e.target.closest('[data-ltype]');
-    if (lt) { lisType = lt.dataset.ltype; $$('#lisTypeRow .chip').forEach((c) => c.classList.toggle('active', c === lt)); return; }
+    if (lt) { lisType = lt.dataset.ltype; $$('#lisTypeRow .chip').forEach((c) => { const on_ = c === lt; c.classList.toggle('active', on_); c.setAttribute('aria-pressed', String(on_)); }); return; }
     const day = e.target.closest('[data-day]');
     if (day) { openDay(day.dataset.day); return; }
-    const ag = e.target.closest('.agenda li');
-    if (ag) { setView(ag.dataset.view); return; }
     const pal = e.target.closest('[data-pal]');
     if (pal) { const it = $('#paletteList')._items?.[Number(pal.dataset.pal)]; $('#paletteDialog').close(); if (it) it.fn(); return; }
   });
   document.addEventListener('keydown', (e) => {
-    const inField = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); return; }
     if (e.key === 'Escape') return;
-    if (inField) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    const typing = t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"], input, textarea, select')));
+    if (typing) return;
+    if (document.querySelector('dialog[open]')) return;
     if (e.key.toLowerCase() === 'w') { e.preventDefault(); openCapture(); }
     if (view === 'review' && reviewQueue.length && reviewIdx < reviewQueue.length) {
       if (e.key === ' ') { e.preventDefault(); if (!revealed) { revealed = true; renderReview(); } }
@@ -723,51 +872,40 @@ function bind() {
   });
   on('quickAddBtn', 'click', openCapture);
   on('topStartBtn', 'click', openReader);
-  on('capSave', 'click', (e) => { e.preventDefault(); if (saveCapture()) $('#captureDialog').close(); });
+  wireForm('captureForm', saveCapture);
+  wireForm('finishForm', saveReading);
+  wireForm('listenFinishForm', saveListeningFromForm);
+  wireForm('bookForm', addBookFromForm);
+  wireForm('journalForm', saveJournalFromForm);
+  armTimerDialog('sessionDialog', R, 'reading', paintR);
+  armTimerDialog('listenDialog', L, 'listening', paintL);
+  on('moreClose', 'click', () => $('#moreDialog').close());
+  on('importConfirm', 'click', () => {
+    if (!pendingImport) return;
+    try {
+      state = importState(pendingImport);
+      pendingImport = null;
+      $('#importDialog').close();
+      persist('Backup imported.');
+    } catch (err) { toast(((err && err.message) || 'Import failed.') + ' Current data untouched.'); }
+  });
+  on('importCancel', 'click', () => { pendingImport = null; $('#importDialog').close(); });
   on('fToggle', 'click', toggleR);
-  on('fReset', 'click', () => { R.run = false; clearInterval(R.h); R.sec = 0; $('#fTimer').textContent = '00:00'; $('#fToggle').textContent = 'Start'; $('#fState').textContent = 'Ready'; });
+  on('fReset', 'click', () => { resetClock(R); $('#fTimer').textContent = '00:00'; $('#fToggle').textContent = 'Start'; $('#fState').textContent = 'Ready'; });
   on('fWord', 'click', () => { $('#capSource').value = currentBook(state)?.title || ''; $('#captureDialog').showModal(); });
   on('fFinish', 'click', finishReader);
-  on('fClose', 'click', () => { if (R.run && !confirm('Close this session without saving?')) return; R.run = false; clearInterval(R.h); $('#sessionDialog').close(); });
-  on('sessSave', 'click', (e) => { e.preventDefault(); if (saveReading()) $('#finishDialog').close(); });
+  on('fClose', 'click', () => { if (R.run && !confirm('Close this session without saving?')) return; resetClock(R); $('#sessionDialog').close(); });
   on('sessStart', 'input', () => { $('#rPages').textContent = Math.max(0, Number($('#sessEnd').value || 0) - Number($('#sessStart').value || 0)); });
   on('sessEnd', 'input', () => { $('#rPages').textContent = Math.max(0, Number($('#sessEnd').value || 0) - Number($('#sessStart').value || 0)); });
   on('lToggle', 'click', toggleL);
-  on('lReset', 'click', () => { L.run = false; clearInterval(L.h); L.sec = 0; $('#lTimer').textContent = '00:00'; $('#lState').textContent = 'Ready'; });
+  on('lReset', 'click', () => { resetClock(L); $('#lTimer').textContent = '00:00'; $('#lState').textContent = 'Ready'; });
   on('lShadow', 'click', () => { lisShadow = !lisShadow; $('#lShadow').textContent = `Shadowing: ${lisShadow ? 'on' : 'off'}`; $('#lShadow').setAttribute('aria-pressed', String(lisShadow)); });
-  on('lFinish', 'click', () => {
-    L.run = false; clearInterval(L.h);
-    $('#listenDialog').close();
-    $('#lrMin').textContent = Math.max(1, Math.round(L.sec / 60));
-    $('#lrMode').textContent = lisShadow ? 'Shadow' : 'Listen';
-    $('#lisPhrases').value = ''; $('#lisNotes').value = ''; $('#lrPhrases').textContent = '0';
-    $('#listenFinishDialog').showModal();
-  });
-  on('lClose', 'click', () => { if (L.run && !confirm('Close without saving?')) return; L.run = false; clearInterval(L.h); $('#listenDialog').close(); });
+  on('lFinish', 'click', finishListening);
+  on('lClose', 'click', () => { if (L.run && !confirm('Close without saving?')) return; resetClock(L); $('#listenDialog').close(); });
   on('lisPhrases', 'input', () => { $('#lrPhrases').textContent = $('#lisPhrases').value.split('\n').map((x) => x.trim()).filter(Boolean).length; });
-  on('lisSave', 'click', (e) => {
-    e.preventDefault();
-    const phrases = $('#lisPhrases').value.split('\n').map((x) => x.trim()).filter(Boolean);
-    state.listening.push({ id: uid('listen'), date: today(), source: $('#lisTitle').value.trim() || 'Listening practice', contentType: lisType, minutes: Math.max(1, Math.round(L.sec / 60)), shadowing: lisShadow, difficulty: Number($('#lisDiff').value), comprehension: Number($('#lisComp').value), phrases, notes: $('#lisNotes').value.trim(), createdAt: new Date().toISOString() });
-    $('#listenFinishDialog').close(); persist(`Listening saved: ${Math.max(1, Math.round(L.sec / 60))} min.`);
-  });
-  on('bkSave', 'click', (e) => {
-    e.preventDefault();
-    const t = $('#bkTitle').value.trim(); if (!t) { toast('Title is required.'); return; }
-    const st = $('#bkStatus').value;
-    if (st === 'reading') state.books.forEach((b) => { if (b.status === 'reading') b.status = 'paused'; });
-    state.books.push({ id: uid('book'), title: t, author: $('#bkAuthor').value.trim(), totalPages: Math.max(1, Number($('#bkPages').value || 100)), currentPage: st === 'finished' ? Number($('#bkPages').value || 100) : 0, level: $('#bkLevel').value, status: st, color: ['#253d58', '#754535', '#3c503c', '#5a4477', '#72533a'][state.books.length % 5] });
-    $('#bookForm').reset(); $('#bookDialog').close(); persist('Book shelved.');
-  });
   on('bdClose', 'click', () => $('#bookDetailDialog').close());
   on('dayClose', 'click', () => $('#dayDialog').close());
   on('jText', 'input', () => { $('#jCount').textContent = `${$('#jText').value.trim().split(/\s+/).filter(Boolean).length} words`; });
-  on('jSave', 'click', (e) => {
-    e.preventDefault();
-    const t = $('#jText').value.trim(); if (!t) { toast('Write something first.'); return; }
-    state.journal.push({ id: uid('journal'), date: today(), title: $('#jTitle').value.trim() || 'Journal entry', prompt: $('#jPrompt').value.trim(), text: t, confidence: Number($('#jConf').value), createdAt: new Date().toISOString() });
-    $('#journalDialog').close(); persist('Journal entry saved.');
-  });
 }
 
 function bootError(err) {
