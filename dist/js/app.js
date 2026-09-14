@@ -972,7 +972,6 @@ function renderSettings() {
     };
     r.readAsText(f); e.target.value = '';
   });
-}
   $('#resetBtn').addEventListener('click', () => {
     if (confirm(t('confirm.reset'))) { state = resetState(); saveState(state); applyTheme(); renderAll(); toast(t('toast.cleared')); }
   });
@@ -1108,15 +1107,18 @@ function drawPalette(q) {
 
 /* ---------- render hub ---------- */
 function renderTop() {
-  $('#todayDate').textContent = fmtShortDate(new Date());
-  $('#sideStreak').textContent = fmtNum(streak(state));
-  $('#sideWeek').textContent = fmtNum(weekMinutes(state));
-  $('#sideGoal').textContent = fmtNum(state.goals.weekly);
+  const d = $('#todayDate');
+  if (d) d.textContent = fmtShortDate(new Date());
+  // Rebuild the whole line every time: no id survives across renders, so never
+  // cache or assume #sideStreak / #sideWeek / #sideGoal exist.
   const sb = document.querySelector('.side-meta');
-  if (sb) sb.innerHTML = `<span><b id="sideStreak">${fmtNum(streak(state))}</b> ${t('common.dayStreak')}</span><span><b id="sideWeek">${fmtNum(weekMinutes(state))}</b> ${t('side.weekOf', { goal: fmtNum(state.goals.weekly) })}</span>`;
+  if (sb) sb.innerHTML = `<span><b>${fmtNum(streak(state))}</b> ${t('common.dayStreak')}</span><span><b>${fmtNum(weekMinutes(state))}</b> ${t('side.weekOf', { goal: fmtNum(state.goals.weekly) })}</span>`;
 }
 function renderAll() {
   renderTop(); buildNav();
+  const tk = TITLES[view] || TITLES.today;
+  $('#pageKicker').textContent = t(tk[0]);
+  $('#pageTitle').textContent = t(tk[1]);
   renderToday(); renderRead(); renderListen(); renderVocab(); renderJournal(); renderLibrary(); renderInsights(); renderProgress(); renderSettings();
   if (view === 'review') renderReview();
   if (view === 'quiz' && quiz) renderQuiz(); else if (view === 'quiz') renderQuiz();

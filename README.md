@@ -135,5 +135,18 @@ Node (no browser needed):
 - API validation: methods, content-type, lengths, languages, no-key 503s,
   invalid audio, rate limiting.
 
-Real browser testing (touch, microphone, PWA install, iPad sizes) was not
-available in this environment — verify on device after deploy.
+Real browser verification (headless Chrome via CDP, fresh profile):
+
+- boot with zero console errors; all 10 views render and activate;
+- More sheet, command palette (14 actions), capture/reader/listener dialogs;
+- EN→TR→EN switching with correct titles and persisted locale;
+- end-to-end: 5 words captured via the real form → full quiz completed and saved
+  → mistake review with reveal+grade → journal saved;
+- offline cloud paths (coach/enrich/transcribe with no backend) fail gracefully
+  with localized messages, no exceptions;
+- adaptive plan skip control works from real session data.
+
+Not tested here (no device/microphone/backend in this environment): real
+microphone recording quality, PWA install flow, iPad-size visual inspection,
+and live Groq/DeepL responses (only validation + 503 paths were exercised —
+point the deployed app at real keys and try each cloud button once).
