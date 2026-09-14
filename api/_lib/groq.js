@@ -3,8 +3,9 @@
 const { withTimeout } = require('./http');
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1';
-// Verified against Groq docs (2026): production text model. Override via GROQ_MODEL.
-function textModel() { return process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'; }
+// Vercel override first, then the current default. Verified against Groq docs:
+// openai/gpt-oss-120b is a production text model.
+function textModel() { return process.env.GROQ_MODEL || 'openai/gpt-oss-120b'; }
 
 function extractJson(text) {
   const raw = String(text || '').trim();

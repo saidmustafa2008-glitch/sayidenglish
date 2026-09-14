@@ -9,17 +9,14 @@ async function deeplTranslate({ text, sourceLang, targetLang }) {
   if (!key) { const e = new Error('missing key'); e.code = 'TRANSLATE_NOT_CONFIGURED'; throw e; }
   const t = withTimeout(12000);
   try {
-    const body = new URLSearchParams({
-      auth_key: key,
-      text,
-      source_lang: sourceLang,
-      target_lang: targetLang
-    });
     const r = await fetch(`${DEEPL_BASE}/v2/translate`, {
       method: 'POST',
       signal: t.signal,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString()
+      headers: {
+        Authorization: `DeepL-Auth-Key ${key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text: [text], source_lang: sourceLang, target_lang: targetLang })
     });
     if (r.status === 429 || r.status === 456) { const e = new Error('quota'); e.code = 'TRANSLATE_LIMIT'; throw e; }
     if (r.status === 403) { const e = new Error('auth'); e.code = 'TRANSLATE_NOT_CONFIGURED'; throw e; }

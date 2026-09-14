@@ -1,5 +1,5 @@
-const CACHE = 'sayid-english-v4-1';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './css/base.css', './css/components.css', './css/responsive.css', './js/app.js', './js/storage.js', './js/stats.js', './js/i18n.js', './js/planner.js', './js/cloud.js', './js/locales/en.js', './js/locales/tr.js', './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png'];
+const CACHE = 'sayid-english-v4-0-1';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './css/base.css', './css/components.css', './css/responsive.css', './js/app.js', './js/storage.js', './js/stats.js', './js/i18n.js', './js/planner.js', './js/cloud.js', './js/locales/en.js', './js/locales/tr.js', './assets/fonts/inter-latin.woff2', './assets/fonts/inter-latin-ext.woff2', './assets/fonts/source-serif-4-latin.woff2', './assets/fonts/source-serif-4-latin-ext.woff2', './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 // HTML/JS/CSS: network-first (stale code never sticks); icons: cache-first; all fall back offline.

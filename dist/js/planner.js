@@ -45,32 +45,40 @@ export function buildPlan(state, todayKey, goals) {
     ? state.sessions.reduce((a, s) => a + Number(s.rating || 3), 0) / state.sessions.length : 0;
   const weakComp = state.sessions.length >= 3 && compAvg < 3;
   const hasBook = Boolean(currentBook(state));
-
+  // Brand-new user (nothing yet): one honest starter that leads to the shelf.
+  if (!state.books.length && !state.sessions.length && !(state.words || []).length) {
+    push('steady', 'read', 15, ['CATCH_UP']);
+  } else {
   // --- review (always first when due; short and capped) ---
   if (due > 0) {
-    push('review', 'review', Math.min(12, 4 + Math.ceil(due / 3)), ['REVIEWS_DUE'], { count: due });
+    push('review', 'review', Math.min(10, 4 + Math.ceil(due / 4)), ['REVIEWS_DUE'], { count: due });
   }
-  // --- reading (core block, 15-25 min, never a punishment) ---
+  // --- reading (core block; never a punishment) ---
   if (hasBook && readMinToday < g.minutes) {
     const reasons = [];
-    if (readStale >= 2) reasons.push('READING_NEGLECTED');
+    if (state.sessions.length && readStale >= 2) reasons.push('READING_NEGLECTED');
     if (readBehind > 5) reasons.push('READING_GOAL_BEHIND');
     if (!reasons.length) reasons.push('STEADY');
-    push('read', 'read', Math.min(25, Math.max(15, g.minutes - readMinToday)), reasons, { stale: readStale, behind: readBehind });
+    push('read', 'read', Math.min(22, Math.max(15, g.minutes - readMinToday)), reasons, { stale: Math.min(readStale, 30), behind: readBehind });
   }
   // --- listening (only when behind or stale) ---
   if (lisMinToday < (Number(g.listening) || 15) && (listenBehind > 2 || listenStale >= 3)) {
-    push('listen', 'listen', Math.min(12, Math.max(6, Number(g.listening) || 8)), ['LISTENING_BEHIND'], { behind: listenBehind, stale: listenStale });
+    push('listen', 'listen', Math.min(10, Math.max(6, Number(g.listening) || 8)), ['LISTENING_BEHIND'], { behind: listenBehind, stale: Math.min(listenStale, 30) });
   }
   // --- journal (short, only when stale) ---
   if (journalStale >= 2 && !journalFor(state, todayKey).length) {
-    push('journal', 'journal', 5, ['JOURNAL_STALE'], { stale: journalStale });
+    push('journal', 'journal', 5, ['JOURNAL_STALE'], { stale: Math.min(journalStale, 30) });
   }
   // --- recall top-up (quiz or comprehension, only on real weakness) ---
-  if (weakQuiz) push('quiz', 'quiz', 8, ['QUIZ_WEAK'], { avg: quizAvg });
-  else if (weakComp) push('comprehension', 'read', 10, ['COMPREHENSION_WEAK'], { avg: Math.round(compAvg * 10) / 10 });
+  if (weakQuiz) push('quiz', 'quiz', 7, ['QUIZ_WEAK'], { avg: quizAvg });
+  else if (weakComp) push('comprehension', 'read', 8, ['COMPREHENSION_WEAK'], { avg: Math.round(compAvg * 10) / 10 });
 
   if (!items.length) push('steady', 'read', 15, state.sessions.length || state.words.length ? ['STEADY'] : ['CATCH_UP']);
+  }
+
+  // --- budget: soft 30-40, hard max 45. A missed week is never punished. ---
+  // Reduce lowest-priority items to sane minimums first, then drop optionals.
+  items.splice(0, items.length, ...normalizeBudget(items));
 
   // --- user control: skip / shorten / restore (persisted per-day in state.plan) ---
   const ov = (state.plan && state.plan.date === todayKey) ? state.plan : { skip: [], reduce: {} };
@@ -105,4 +113,32 @@ export function planSetReduce(state, todayKey, id, minutes) {
 
 export function planReset(state, todayKey) {
   state.plan = { date: todayKey, skip: [], reduce: {} };
+}
+
+// Budget normalization: hard max 45 min, soft target 30-40. Lowest priority is
+// trimmed first (to sane minimums, never 1 minute), then dropped if needed.
+export const BUDGET_MAX = 45;
+const MIN_EST = { review: 4, read: 15, listen: 6, journal: 5, quiz: 6, comprehension: 6, steady: 10 };
+const TRIM_ORDER = ['comprehension', 'quiz', 'journal', 'listen', 'read', 'review'];
+export function normalizeBudget(items) {
+  const list = (items || []).map((it) => ({ ...it }));
+  const total = () => list.reduce((a, v) => a + v.est, 0);
+  for (const id of TRIM_ORDER) {
+    if (total() <= BUDGET_MAX) break;
+    const it = list.find((x) => x.id === id);
+    const min = MIN_EST[id] ?? 5;
+    if (it && it.est > min) it.est = Math.max(min, it.est - Math.ceil(total() - BUDGET_MAX));
+  }
+  for (const id of TRIM_ORDER) {
+    if (total() <= BUDGET_MAX) break;
+    const i = list.findIndex((x) => x.id === id);
+    if (i >= 0 && list.length > 1) list.splice(i, 1);
+  }
+  // Soft target 30-40: when the core day is already full, defer the recall
+  // top-up (quiz/comprehension) instead of stacking it on top.
+  if (total() > 40) {
+    const i = list.findIndex((x) => x.id === 'quiz' || x.id === 'comprehension');
+    if (i >= 0 && list.length > 1) list.splice(i, 1);
+  }
+  return list;
 }

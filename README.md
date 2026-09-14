@@ -61,13 +61,16 @@ vercel.json            serves dist/, keeps /api/* as functions
 
 ## Environment variables (Vercel)
 
-Project → Settings → Environment Variables:
+Project → Settings → Environment Variables. Server-side only — keys never
+reach the browser, localStorage, backups, or error responses. The DeepL client
+authenticates with the `Authorization: DeepL-Auth-Key` header and JSON bodies
+(never `auth_key` in the request body).
 
 | Variable | Required | Default |
 |---|---|---|
 | `GROQ_API_KEY` | for Journal Coach, Enrich, Comprehension, Speech | — |
-| `DEEPL_API_KEY` | for contextual translation (DeepL Free: `api-free.deepl.com`) | — |
-| `GROQ_MODEL` | no | `llama-3.3-70b-versatile` |
+| `DEEPL_API_KEY` | for contextual translation (DeepL Free: `api-free.deepl.com`, header auth `DeepL-Auth-Key`) | — |
+| `GROQ_MODEL` | no | `openai/gpt-oss-120b` |
 | `GROQ_SPEECH_MODEL` | no | `whisper-large-v3-turbo` |
 
 Without keys the app runs fully offline; cloud endpoints return
